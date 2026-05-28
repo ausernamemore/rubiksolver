@@ -219,19 +219,25 @@ class BSP:
         BSP.consultBSP(self.tree, matrix, self)
 
 class Bases:
+    """
+        All methods take a Tag object as first parameter, and will return an empty mesh if None is passed
+        Use trigle() to build a triangle given three points
+        Use paralog() to build a parallelogram given three corners (first one should be adjacent to the other two)
+    """
+
     @staticmethod
     def trigle(t, c1, c2, c3):
-        return [
-            Polygon(t, (toVec(c1), True), (toVec(c2), True), (toVec(c3), True))]
+        if t is None: return []
+        return [Polygon(t, (toVec(c1), True), (toVec(c2), True), (toVec(c3), True))]
 
     @staticmethod
     def paralog(t, mid, c1, c2):  # create parallelogram given three of its corners
+        if t is None: return []
         mid = toVec(mid)
         c1 = toVec(c1)
         c2 = toVec(c2)
-        if (c1 - mid).cross(c2 - mid).length() == 0: raise Exception("[paralog] The points are collinear and do not form a parallelogram")
+        if (c1 - mid).cross(c2 - mid).length() == 0:
+            raise Exception("[paralog] The points are collinear and do not form a parallelogram")
         opp = c1 + c2 - mid  # calculate corner opposite to mid
-        return [
-            Polygon(t, (mid, False), (c1, True), (c2, True)),
-            Polygon(t, (opp, False), (c1, True), (c2, True))]
+        return [Polygon(t, (mid, False), (c1, True), (c2, True)), Polygon(t, (opp, False), (c1, True), (c2, True))]
 

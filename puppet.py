@@ -237,7 +237,7 @@ class CubePiece(Tag):
     def getPolygons(self):
         o = self.location
         ptype = self.getType()
-        inner = self.inner
+        inner = None if self.solver.optimised else self.inner
 
         if ptype == "":
             self.color = None
@@ -333,8 +333,35 @@ class CubePiece(Tag):
                 Bases.paralog(self, o.scale(1, 5, 3), o.scale(1, 5, -1), o.scale(5, 5, 3)) +
                 Bases.paralog(self, o.scale(5, 1, 3), o.scale(5, 1, -1), o.scale(5, 5, 3)))
 
+class Cached:
+    """
+        Stores a single value and allows for elegant update chaining between multipe Cached objects.
+        Caches can be invalidated by dependencies and set to None; keep in mind when reading raw .value
+        data or use .readSafe() instead.
+    """
+    class InvalidCacheError(Exception): pass
+    def __init__(self, value=None):
+        self.modifying = []
+        self.value = value
+    def modifies(self, c):
+        if not isinstance(c, Cached): raise Exception("Cached objects can only modify other cached objects!")
+        self.modifying.append(c)
+        return self
+    def isInvalid(self):
+        return self.value is None
+    def readSafe(self):
+        if self.value is None:
+            raise Cached.InvalidCacheError()
+        return self.value
+    def update(self, newvalue=None):
+        if self.value == newvalue: return False  # signal no changes made
+        self.value = newvalue
+        for c in self.modifying: c.update()
+        return True  # signal changes have been made
+
 class VisualSolver:
-    # OCD convention definition
+    # Important: Do NOT change these coordinate points as they're tied to OCD!
+        #If you want to rotate the cube, simply apply the rotation after generating the mesh instead.
     Locations = [  # OCD
         Point( 1,  1,  1), # 0
         Point( 1, -1,  1), # 1
@@ -347,10 +374,10 @@ class VisualSolver:
     ]
 
     # Turn the absolute sequence into an axis-adjusted so lines up with visualisation
-    @staticmethod
-    def moveSequence(moves, axis):
+    def generateSequence(self):
         output = ""
-        for char in moves:
+        axis = self.oriented.value
+        for char in self.absolute.value:
             if char == "*": continue  # skip identity
             elif char == "U": index, invert = "U", False
             elif char == "R": index, invert = "R", False
@@ -358,8 +385,7 @@ class VisualSolver:
             elif char == "u": index, invert = "U", True
             elif char == "r": index, invert = "R", True
             elif char == "f": index, invert = "F", True
-            else: return " something went wrong!"
-
+            else: raise Exception("Something went wrong!")
             output += " " + axis[index][0] + ("'" if invert else "")
             if axis[index][1]:  # the rotation moves along MMM (which determines orientation) -> udpate axis accordingly
                 if index == "U": # R->F and F->R' if not inverted
@@ -369,9 +395,8 @@ class VisualSolver:
                 elif index == "F":  # U->R and R->U' if not inverted
                     axis = {"U": (axis["R"][0], axis["R"][1] == invert), "R": (axis["U"][0], axis["U"][1] != invert), "F": axis["F"]}
                 else:
-                    return " something went wrong!"
-
-        return output if output else " (do nothing)"
+                    raise Exception("Something went wrong!")
+        self.relative.update(output if output else " already solved")
 
     def compareComponents(self, v):
         dU, dF, dR = v.dot(self.Uaxis), v.dot(self.Faxis), v.dot(self.Raxis)
@@ -383,43 +408,36 @@ class VisualSolver:
         return None
 
     def generateCube(self):
+        cube = [piece.getType() for piece in self.pieces]
+        if Point.Validate(cube) is None: return None
+
         mesh = []
         for piece in self.pieces:
             center, points = piece.getPolygons()
             for i in points: i.orient(center)
             mesh.extend(points)
 
-        cube = [piece.getType() for piece in self.pieces]
-        if Point.Validate(cube) is None: return None
         if "" in cube:  # incomplete construction
-            self.cached.absolute = self.cached.relative = None
+            self.absolute.update()
         else:
             e = serialiseState(cube)
             with shelve.open("dbs/puppet.db", flag="r") as db:
-                if e in db:
-                    self.cached.absolute = reverse(db[e][1])
-                    self.cached.relative = None
-                else:
-                    self.cached.absolute = -1
-                    self.cached.relative = None
+                self.absolute.update(reverse(db[e][1]) if e in db else -1)
 
         for i in mesh: i.transform(Matrix.rotationT(-math.pi/2, Matrix.unitX) @ Matrix.rotationT(math.pi/2, Matrix.unitZ))
         return mesh
 
-    class Cached:
-        def __init__(self):
-            self.absolute = None
-            self.basis = None
-            self.relative = None
-
-    def __init__(self):
+    def __init__(self, optimised):
+        self.optimised = optimised
         pygame.init()
         font = pygame.font.SysFont('Consolas', 18)
         window = pygame.display.set_mode((700, 700), pygame.RESIZABLE)
 
         self.cursor = None
         self.preserveCursor = False
-        self.cached = VisualSolver.Cached()
+        self.relative = Cached()
+        self.absolute = Cached().modifies(self.relative)
+        self.oriented = Cached().modifies(self.relative)
         self.pieces = [CubePiece(self, location) for location in VisualSolver.Locations]
         self.pieces[6].fixed = "MMM"  # MMM should stay the same!
         for p, s in enumerate(CubePiece.Solved):
@@ -515,9 +533,7 @@ class VisualSolver:
                         or newBasis["F"][0] == newBasis["R"][0]
                         or newBasis["R"][0] == newBasis["U"][0]):
                     newBasis = None
-                if newBasis != self.cached.basis:
-                    self.cached.basis = newBasis
-                    self.cached.relative = None
+                self.oriented.update(newBasis)
 
                 window.fill((128, 128, 128))
                 self.bsptree.render(transformation)
@@ -532,14 +548,14 @@ class VisualSolver:
                 window.blit(font.render(f"WASD, SHIFT and SPACE to move. Arrow keys to adjust camera. Press F on a piece to swap it.", True, (0, 0, 0)), (10, 10))
                 window.blit(font.render(f"{self.bsptree.count} polygons visible", True, (80, 80, 80)), (10, 40))
 
-                if self.cached.absolute == -1:  # -> unsolvable
+                if self.absolute.value == -1:  # -> unsolvable
                     window.blit(font.render("Unsolvable!", True, (0, 0, 0)), (0, 70))
-                elif self.cached.absolute is not None:  # -> solvable
-                    if self.cached.relative is None and self.cached.basis:
-                        self.cached.relative = VisualSolver.moveSequence(self.cached.absolute, self.cached.basis)  # compute relative solution from basis
-
-                    if self.cached.relative: window.blit(font.render(f"Solution: {self.cached.relative}", True, (0, 0, 0)), (10, 70))
-                    window.blit(font.render(f"Solution (on default orientation): {self.cached.absolute}", True, (0, 0, 0)), (10, 100))
+                elif self.absolute.value is not None:  # -> solvable
+                    window.blit(font.render(f"Solution (orientationless): {self.absolute.value}", True, (0, 0, 0)), (10, 70))
+                    if self.oriented.value and self.relative.isInvalid():  # compute relative solution from basis
+                        self.generateSequence()
+                if self.relative.value:
+                    window.blit(font.render(f"Solution: {self.relative.value}", True, (0, 0, 0)), (10, 100))
 
                 pygame.display.flip()
             clock.tick(60)
