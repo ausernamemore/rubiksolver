@@ -505,12 +505,16 @@ class VisualSolver:
                 self.bsptree.dirty = False
 
                 common = Matrix.applyTo(transformation, Matrix.zero)
-                newU = self.compareComponents(Matrix.applyTo(transformation, self.Uaxis) - common)
-                newF = self.compareComponents(Matrix.applyTo(transformation, self.Faxis) - common)
-                newR = self.compareComponents(Matrix.applyTo(transformation, self.Raxis) - common)
-                # Basis dictionary tell us, for each canonical cube axis, which physical rotation we'd have to do to achieve it (and whether it's reversed)
-                newBasis = {"U": newU, "F": newF, "R": newR}
-                if (not newU) or (not newF) or (not newR) or newU[0] == newF[0] or newF[0] == newR[0] or newR[0] == newU[0]: newBasis = None
+                # Basis dictionary tell us, for each canonical cube axis, which physical rotation achieves it (and whether it's reversed)
+                newBasis = {
+                    "U": self.compareComponents(Matrix.applyTo(transformation, self.Uaxis) - common),
+                    "F": self.compareComponents(Matrix.applyTo(transformation, self.Faxis) - common),
+                    "R": self.compareComponents(Matrix.applyTo(transformation, self.Raxis) - common)}
+                if ((not newBasis["U"]) or (not newBasis["F"]) or (not newBasis["R"])
+                        or newBasis["U"][0] == newBasis["F"][0]
+                        or newBasis["F"][0] == newBasis["R"][0]
+                        or newBasis["R"][0] == newBasis["U"][0]):
+                    newBasis = None
                 if newBasis != self.cached.basis:
                     self.cached.basis = newBasis
                     self.cached.relative = None
