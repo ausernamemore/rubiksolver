@@ -1,6 +1,7 @@
 import math
 from eng import *
 from gexplorer import *
+from cached import *
 
 """
     Code by u/Adventurous_Fill7251
@@ -333,40 +334,6 @@ class CubePiece(Tag):
                 Bases.paralog(self, o.scale(1, 5, 3), o.scale(1, 5, -1), o.scale(5, 5, 3)) +
                 Bases.paralog(self, o.scale(5, 1, 3), o.scale(5, 1, -1), o.scale(5, 5, 3)))
 
-class Cached:
-    """
-        Stores a single value and allows for elegant update chaining between multipe Cached objects.
-        Caches can be invalidated by dependencies and set to None; keep in mind when reading raw .value
-        data or use .readSafe() instead.
-        
-        modifies(Cached) -> self :: chain another Cached object so it gets invalidated when this Cached changes
-        isInvalid() -> boolean :: returns whether this Cached is invalid or not
-        readSafe() -> value :: returns the value of this Cached if it's valid, throws InvalidCacheError otherwise
-        update(value=None) -> None :: updates the value of this Cached only if it's different than the current one
-            -> if value is None (or not passed), invalidates this Cached.
-        force(value) -> None :: updates the value of this Cached regardless whether it has changed or not
-    """
-    class InvalidCacheError(Exception): pass
-    def __init__(self, value=None):
-        self.modifying = []
-        self.value = value
-    def modifies(self, c):
-        if not isinstance(c, Cached): raise Exception("Cached objects can only modify other cached objects!")
-        self.modifying.append(c)
-        return self
-    def isInvalid(self):
-        return self.value is None
-    def readSafe(self):
-        if self.value is None:
-            raise Cached.InvalidCacheError()
-        return self.value
-    def update(self, newvalue=None):
-        if self.value != newvalue:
-            self.force(newvalue)
-    def force(self, newvalue):
-        self.value = newvalue
-        for c in self.modifying: c.update()
-
 
 class VisualSolver:
     # Important: Do NOT change these coordinate points as they're tied to OCD!
@@ -385,8 +352,8 @@ class VisualSolver:
     # Turn the absolute sequence into an axis-adjusted so lines up with visualisation
     def generateSequence(self):
         output = ""
-        axis = self.oriented.value
-        for char in self.absolute.value:
+        axis = self.oriented.readSafe()
+        for char in self.absolute.readSafe():
             if char == "*": continue  # skip identity
             elif char == "U": index, invert = "U", False
             elif char == "R": index, invert = "R", False
@@ -427,7 +394,7 @@ class VisualSolver:
             mesh.extend(points)
 
         if "" in cube:  # incomplete construction
-            self.absolute.update()
+            self.absolute.set()
         else:
             e = serialiseState(cube)
             with shelve.open("dbs/puppet.db", flag="r") as db:
@@ -443,11 +410,11 @@ class VisualSolver:
         window = pygame.display.set_mode((700, 700), pygame.RESIZABLE)
 
         screen = Cached()
-        self.cursor = Cached().modifies(screen)
+        self.cursor = Cached().invalidates(screen)
         self.preserveCursor = False
         self.relative = Cached()
-        self.absolute = Cached().modifies(self.relative)
-        self.oriented = Cached().modifies(self.relative)
+        self.absolute = Cached().invalidates(self.relative)
+        self.oriented = Cached().invalidates(self.relative)
         self.pieces = [CubePiece(self, location) for location in VisualSolver.Locations]
         self.pieces[6].fixed = "MMM"  # MMM should stay the same!
         for p, s in enumerate(CubePiece.Solved):
@@ -458,14 +425,14 @@ class VisualSolver:
         self.Faxis = Matrix.unitZ
         self.Raxis = -Matrix.unitX 
 
-        transformation = Cached(value=Matrix.scaleT(.3)).modifies(screen)
+        transformation = Cached(value=Matrix.scaleT(.3)).invalidates(screen)
         def compose(new):
-            # Note: force() used here because equality on numpy matrices is fucked up
-            transformation.force(new @ transformation.value)
+            # Note: set() used here because equality on numpy matrices is fucked up
+            transformation.set(new @ transformation.readSafe())
         pygame.display.set_caption("Automated Solver")
         clock = pygame.time.Clock()
 
-        self.tree = Cached().modifies(screen)
+        self.tree = Cached().invalidates(screen)
         self.generateTree()
 
         BSP.window = window
@@ -476,15 +443,15 @@ class VisualSolver:
             for event in pygame.event.get():
                 if event.type == pygame.VIDEORESIZE:
                     BSP.dims = pygame.display.get_surface().get_size()
-                    screen.update()
+                    screen.set()
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_f:
                         if not self.cursor.isInvalid():
                             # change the current cursor piece
                             self.preserveCursor = True
-                            self.tree.update()
+                            self.tree.set()
                             while self.tree.isInvalid():
-                                self.cursor.value.cycle()
+                                self.cursor.readSafe().cycle()
                                 self.generateTree()
 
                 elif event.type == pygame.QUIT:
@@ -508,11 +475,11 @@ class VisualSolver:
                 screen.update(True)
 
                 # basis tell us, for each original cube axis, which physical axis carries it now (and whether it's reversed)
-                common = Matrix.applyTo(transformation.value, Matrix.zero)
+                common = Matrix.applyTo(transformation.readSafe(), Matrix.zero)
                 newBasis = {
-                    "U": self.compareComponents(Matrix.applyTo(transformation.value, self.Uaxis) - common),
-                    "F": self.compareComponents(Matrix.applyTo(transformation.value, self.Faxis) - common),
-                    "R": self.compareComponents(Matrix.applyTo(transformation.value, self.Raxis) - common)}
+                    "U": self.compareComponents(Matrix.applyTo(transformation.readSafe(), self.Uaxis) - common),
+                    "F": self.compareComponents(Matrix.applyTo(transformation.readSafe(), self.Faxis) - common),
+                    "R": self.compareComponents(Matrix.applyTo(transformation.readSafe(), self.Raxis) - common)}
                 if ((not newBasis["U"]) or (not newBasis["F"]) or (not newBasis["R"])
                         or newBasis["U"][0] == newBasis["F"][0]
                         or newBasis["F"][0] == newBasis["R"][0]
@@ -524,7 +491,7 @@ class VisualSolver:
 
                 BSP.count = 0
                 BSP.cursor = None
-                BSP.consultBSP(self.tree.readSafe(), transformation.value)
+                BSP.consultBSP(self.tree.readSafe(), transformation.readSafe())
                 self.cursor.update(
                     self.cursor.value if self.preserveCursor else  # if we just pressed F, don't change cursor!
                     BSP.cursor.parent if isinstance(BSP.cursor, CubePiece.Inner) else
