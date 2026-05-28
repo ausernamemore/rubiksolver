@@ -209,6 +209,7 @@ RED = (255, 0, 0)
 BLUE = (0, 0, 255)
 ORANGE = (255, 128, 0)
 GREEN = (0, 255, 0)
+DGREEN = (0, 128, 0)
 CYAN = (0, 128, 128)
 MAGENTA = (255, 0, 255)
 GRAY = (64, 64, 64)
@@ -302,7 +303,7 @@ class CubePiece(Tag):
                 Bases.paralog(self, o.scale(3, 3, 5), o.scale(3, 3, 3), o.scale(-1, 3, 5)) +
                 Bases.paralog(self, o.scale(3, 3, 5), o.scale(3, -1, 5), o.scale(-1, 3, 5)))
         if ptype == "fbB":
-            self.color = BLUE
+            self.color = DGREEN
             return o.scale(1, 4, 4), (
                 Bases.paralog(inner, o.scale(3, 5, 1), o.scale(-1, 5, 1), o.scale(3, 3, 1)) +
                 Bases.paralog(inner, o.scale(3, 1, 5), o.scale(-1, 1, 5), o.scale(3, 1, 3)) +
@@ -312,7 +313,7 @@ class CubePiece(Tag):
                 Bases.paralog(self, o.scale(3, 1, 5), o.scale(-1, 1, 5), o.scale(3, 5, 5)) +
                 Bases.paralog(self, o.scale(3, 5, 1), o.scale(-1, 5, 1), o.scale(3, 5, 5)))
         if ptype == "rlB":
-            self.color = BLUE
+            self.color = DGREEN
             return o.scale(4, 1, 4), (
                 Bases.paralog(inner, o.scale(5, 3, 1), o.scale(5, -1, 1), o.scale(3, 3, 1)) +
                 Bases.paralog(inner, o.scale(1, 3, 5), o.scale(1, -1, 5), o.scale(1, 3, 3)) +
@@ -322,7 +323,7 @@ class CubePiece(Tag):
                 Bases.paralog(self, o.scale(1, 3, 5), o.scale(1, -1, 5), o.scale(5, 3, 5)) +
                 Bases.paralog(self, o.scale(5, 3, 1), o.scale(5, -1, 1), o.scale(5, 3, 5)))
         if ptype == "udB":
-            self.color = BLUE
+            self.color = DGREEN
             return o.scale(4, 4, 1), (
                 Bases.paralog(inner, o.scale(5, 1, 3), o.scale(5, 1, -1), o.scale(3, 1, 3)) +
                 Bases.paralog(inner, o.scale(1, 5, 3), o.scale(1, 5, -1), o.scale(1, 3, 3)) +
@@ -348,7 +349,6 @@ class VisualSolver:
     # Turn the absolute sequence into an axis-adjusted so lines up with visualisation
     @staticmethod
     def moveSequence(moves, axis):
-        if not (axis["U"] and axis["F"] and axis["R"]): return ""
         output = ""
         for char in moves:
             if char == "*": continue  # skip identity
@@ -510,13 +510,12 @@ class VisualSolver:
                 newR = self.compareComponents(Matrix.applyTo(transformation, self.Raxis) - common)
                 # Basis dictionary tell us, for each canonical cube axis, which physical rotation we'd have to do to achieve it (and whether it's reversed)
                 newBasis = {"U": newU, "F": newF, "R": newR}
+                if (not newU) or (not newF) or (not newR) or newU[0] == newF[0] or newF[0] == newR[0] or newR[0] == newU[0]: newBasis = None
                 if newBasis != self.cached.basis:
                     self.cached.basis = newBasis
                     self.cached.relative = None
 
                 window.fill((128, 128, 128))
-                if self.preserveCursor:
-                    window.blit(font.render(str(self.pieces.index(self.cursor)), True, (0,0,0)), (0, 20))
                 self.bsptree.render(transformation)
                 if self.preserveCursor:
                     self.preserveCursor = False
@@ -526,18 +525,17 @@ class VisualSolver:
                         self.bsptree.dirty = True
 
                 pygame.draw.circle(BSP.window, WHITE, (BSP.dims[0]//2, BSP.dims[1]//2), 3)
-                window.blit(font.render(str(self.bsptree.count), True, (0, 0, 0)), (0, 0))
+                window.blit(font.render(f"WASD, SHIFT and SPACE to move. Arrow keys to adjust camera. Press F on a piece to swap it.", True, (0, 0, 0)), (10, 10))
+                window.blit(font.render(f"{self.bsptree.count} polygons visible", True, (80, 80, 80)), (10, 40))
 
                 if self.cached.absolute == -1:  # -> unsolvable
-                    window.blit(font.render("Unsolvable!", True, (0, 0, 0)), (0, 60))
+                    window.blit(font.render("Unsolvable!", True, (0, 0, 0)), (0, 70))
                 elif self.cached.absolute is not None:  # -> solvable
                     if self.cached.relative is None and self.cached.basis:
                         self.cached.relative = VisualSolver.moveSequence(self.cached.absolute, self.cached.basis)  # compute relative solution from basis
-                    absolute = reverse(self.cached.absolute)
-                    relative = VisualSolver.moveSequence(absolute, self.cached.basis)
 
-                    if self.cached.relative: window.blit(font.render(f"Solution: {self.cached.relative}", True, (0, 0, 0)), (0, 60))
-                    window.blit(font.render(f"Solution (on default orientation): {self.cached.absolute}", True, (0, 0, 0)), (0, 80))
+                    if self.cached.relative: window.blit(font.render(f"Solution: {self.cached.relative}", True, (0, 0, 0)), (10, 70))
+                    window.blit(font.render(f"Solution (on default orientation): {self.cached.absolute}", True, (0, 0, 0)), (10, 100))
 
                 pygame.display.flip()
             clock.tick(60)
