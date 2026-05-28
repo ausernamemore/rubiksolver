@@ -25,6 +25,12 @@ class Polygon:
             and round((self.c[0] - self.a[0]).length(), 5) > 0)
 
     # (in-place)
+    def transform(self, matrix):
+        self.a = Matrix.applyTo(matrix, self.a[0]), self.a[1]
+        self.b = Matrix.applyTo(matrix, self.b[0]), self.b[1]
+        self.c = Matrix.applyTo(matrix, self.c[0]), self.c[1]
+
+    # (in-place)
     def orient(self, center, reverse=False):  # flip polygon so that it's invisible from a view point (usually the center of a solid shape)
         s = BSP.mkD(self).distf(toVec(center))
         if s == 0:

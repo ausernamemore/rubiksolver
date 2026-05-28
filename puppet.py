@@ -215,7 +215,7 @@ GRAY = (64, 64, 64)
 
 class CubePiece(Tag):
     Options = ["", "rlL", "udL", "fbL", "rlB", "udB", "fbB", "CCC"]
-
+    Solved = [7, 4, 2, 6, 5, 3, None, 1]
 
     class Inner(Tag):
         def __init__(self, parent): self.parent = parent
@@ -265,17 +265,17 @@ class CubePiece(Tag):
         if ptype == "CCC":
             self.color = ORANGE
             return o.scale(3, 3, 3), (
-                #Bases.paralog(inner, o.scale(1, 1, 1), o.scale(5, 1, 1), o.scale(1, 5, 1)) +
-                #Bases.paralog(inner, o.scale(1, 1, 1), o.scale(1, 1, 5), o.scale(5, 1, 1)) +
-                #Bases.paralog(inner, o.scale(1, 1, 1), o.scale(1, 5, 1), o.scale(1, 1, 5)) +
+                Bases.paralog(inner, o.scale(1, 1, 1), o.scale(5, 1, 1), o.scale(1, 5, 1)) +
+                Bases.paralog(inner, o.scale(1, 1, 1), o.scale(1, 1, 5), o.scale(5, 1, 1)) +
+                Bases.paralog(inner, o.scale(1, 1, 1), o.scale(1, 5, 1), o.scale(1, 1, 5)) +
                 Bases.paralog(self, o.scale(5, 5, 5), o.scale(5, 1, 5), o.scale(5, 5, 1)) +
                 Bases.paralog(self, o.scale(5, 5, 5), o.scale(5, 5, 1), o.scale(1, 5, 5)) +
                 Bases.paralog(self, o.scale(5, 5, 5), o.scale(1, 5, 5), o.scale(5, 1, 5)))
         if ptype == "fbL":
             self.color = RED
             return o.scale(4, 1, 1), (
-                #Bases.paralog(inner, o.scale(5, -1, -1), o.scale(3, -1, -1), o.scale(5, 3, -1)) +
-                #Bases.paralog(inner, o.scale(5, -1, -1), o.scale(3, -1, -1), o.scale(5, -1, 3)) +
+                Bases.paralog(inner, o.scale(5, -1, -1), o.scale(3, -1, -1), o.scale(5, 3, -1)) +
+                Bases.paralog(inner, o.scale(5, -1, -1), o.scale(3, -1, -1), o.scale(5, -1, 3)) +
                 Bases.paralog(self, o.scale(3, 3, 3), o.scale(1, 3, 3), o.scale(3, 1, 3)) +
                 Bases.paralog(self, o.scale(3, 3, 3), o.scale(1, 3, 3), o.scale(3, 3, 1)) +
                 Bases.paralog(self, o.scale(5, 3, 3), o.scale(3, 3, 3), o.scale(5, 3, -1)) +
@@ -284,8 +284,8 @@ class CubePiece(Tag):
         if ptype == "rlL":
             self.color = RED
             return o.scale(1, 4, 1), (
-                #Bases.paralog(inner, o.scale(-1, 5, -1), o.scale(-1, 3, -1), o.scale(3, 5, -1)) +
-                #Bases.paralog(inner, o.scale(-1, 5, -1), o.scale(-1, 3, -1), o.scale(-1, 5, 3)) +
+                Bases.paralog(inner, o.scale(-1, 5, -1), o.scale(-1, 3, -1), o.scale(3, 5, -1)) +
+                Bases.paralog(inner, o.scale(-1, 5, -1), o.scale(-1, 3, -1), o.scale(-1, 5, 3)) +
                 Bases.paralog(self, o.scale(3, 3, 3), o.scale(3, 1, 3), o.scale(1, 3, 3)) +
                 Bases.paralog(self, o.scale(3, 3, 3), o.scale(3, 1, 3), o.scale(3, 3, 1)) +
                 Bases.paralog(self, o.scale(3, 5, 3), o.scale(3, 3, 3), o.scale(3, 5, -1)) +
@@ -294,8 +294,8 @@ class CubePiece(Tag):
         if ptype == "udL":
             self.color = RED
             return o.scale(1, 1, 4), (
-                #Bases.paralog(inner, o.scale(-1, -1, 5), o.scale(-1, -1, 3), o.scale(3, -1, 5)) +
-                #Bases.paralog(inner, o.scale(-1, -1, 5), o.scale(-1, -1, 3), o.scale(-1, 3, 5)) +
+                Bases.paralog(inner, o.scale(-1, -1, 5), o.scale(-1, -1, 3), o.scale(3, -1, 5)) +
+                Bases.paralog(inner, o.scale(-1, -1, 5), o.scale(-1, -1, 3), o.scale(-1, 3, 5)) +
                 Bases.paralog(self, o.scale(3, 3, 3), o.scale(3, 3, 1), o.scale(1, 3, 3)) +
                 Bases.paralog(self, o.scale(3, 3, 3), o.scale(3, 3, 1), o.scale(3, 1, 3)) +
                 Bases.paralog(self, o.scale(3, 3, 5), o.scale(3, 3, 3), o.scale(3, -1, 5)) +
@@ -304,76 +304,83 @@ class CubePiece(Tag):
         if ptype == "fbB":
             self.color = BLUE
             return o.scale(1, 4, 4), (
-                #Bases.paralog(inner, o.scale(3, 5, 1), o.scale(-1, 5, 1), o.scale(3, 3, 1)) +
-                #Bases.paralog(inner, o.scale(3, 1, 5), o.scale(-1, 1, 5), o.scale(3, 1, 3)) +
-                #Bases.paralog(inner, o.scale(-1, 5, 1), o.scale(-1, 3, 1), o.scale(-1, 5, 5)) +
-                #Bases.paralog(inner, o.scale(-1, 1, 5), o.scale(-1, 1, 3), o.scale(-1, 3, 5)) +
+                Bases.paralog(inner, o.scale(3, 5, 1), o.scale(-1, 5, 1), o.scale(3, 3, 1)) +
+                Bases.paralog(inner, o.scale(3, 1, 5), o.scale(-1, 1, 5), o.scale(3, 1, 3)) +
+                Bases.paralog(inner, o.scale(-1, 5, 1), o.scale(-1, 3, 1), o.scale(-1, 5, 5)) +
+                Bases.paralog(inner, o.scale(-1, 1, 5), o.scale(-1, 1, 3), o.scale(-1, 3, 5)) +
                 Bases.paralog(self, o.scale(3, 1, 1), o.scale(3, 5, 1), o.scale(3, 1, 5)) +
                 Bases.paralog(self, o.scale(3, 1, 5), o.scale(-1, 1, 5), o.scale(3, 5, 5)) +
                 Bases.paralog(self, o.scale(3, 5, 1), o.scale(-1, 5, 1), o.scale(3, 5, 5)))
         if ptype == "rlB":
             self.color = BLUE
             return o.scale(4, 1, 4), (
-                #Bases.paralog(inner, o.scale(5, 3, 1), o.scale(5, -1, 1), o.scale(3, 3, 1)) +
-                #Bases.paralog(inner, o.scale(1, 3, 5), o.scale(1, -1, 5), o.scale(1, 3, 3)) +
-                #Bases.paralog(inner, o.scale(5, -1, 1), o.scale(3, -1, 1), o.scale(5, -1, 5)) +
-                #Bases.paralog(inner, o.scale(1, -1, 5), o.scale(1, -1, 3), o.scale(3, -1, 5)) +
+                Bases.paralog(inner, o.scale(5, 3, 1), o.scale(5, -1, 1), o.scale(3, 3, 1)) +
+                Bases.paralog(inner, o.scale(1, 3, 5), o.scale(1, -1, 5), o.scale(1, 3, 3)) +
+                Bases.paralog(inner, o.scale(5, -1, 1), o.scale(3, -1, 1), o.scale(5, -1, 5)) +
+                Bases.paralog(inner, o.scale(1, -1, 5), o.scale(1, -1, 3), o.scale(3, -1, 5)) +
                 Bases.paralog(self, o.scale(1, 3, 1), o.scale(5, 3, 1), o.scale(1, 3, 5)) +
                 Bases.paralog(self, o.scale(1, 3, 5), o.scale(1, -1, 5), o.scale(5, 3, 5)) +
                 Bases.paralog(self, o.scale(5, 3, 1), o.scale(5, -1, 1), o.scale(5, 3, 5)))
         if ptype == "udB":
             self.color = BLUE
             return o.scale(4, 4, 1), (
-                #Bases.paralog(inner, o.scale(5, 1, 3), o.scale(5, 1, -1), o.scale(3, 1, 3)) +
-                #Bases.paralog(inner, o.scale(1, 5, 3), o.scale(1, 5, -1), o.scale(1, 3, 3)) +
-                #Bases.paralog(inner, o.scale(5, 1, -1), o.scale(3, 1, -1), o.scale(5, 5, -1)) +
-                #Bases.paralog(inner, o.scale(1, 5, -1), o.scale(1, 3, -1), o.scale(3, 5, -1)) +
+                Bases.paralog(inner, o.scale(5, 1, 3), o.scale(5, 1, -1), o.scale(3, 1, 3)) +
+                Bases.paralog(inner, o.scale(1, 5, 3), o.scale(1, 5, -1), o.scale(1, 3, 3)) +
+                Bases.paralog(inner, o.scale(5, 1, -1), o.scale(3, 1, -1), o.scale(5, 5, -1)) +
+                Bases.paralog(inner, o.scale(1, 5, -1), o.scale(1, 3, -1), o.scale(3, 5, -1)) +
                 Bases.paralog(self, o.scale(1, 1, 3), o.scale(5, 1, 3), o.scale(1, 5, 3)) +
                 Bases.paralog(self, o.scale(1, 5, 3), o.scale(1, 5, -1), o.scale(5, 5, 3)) +
                 Bases.paralog(self, o.scale(5, 1, 3), o.scale(5, 1, -1), o.scale(5, 5, 3)))
 
-# Turn the absolute sequence into an axis-dependant so it adjusts to the front, up and right faces on viewer
-def moveSequence(moves):
-    # [axis pointing upwards, axis pointing towards us, axis pointing to our right] at each moment throughout the sequence
-    # -> the booleans signal whether the axis is inverted (True) or standard (False)
-    # -> this space is left-hand oriented becuase I'm left handed btw!
-    axis = {"U": ("U",False), "R": ("R",False), "F": ("F",False)}
-
-    output = ""
-    for char in moves:
-        if char == "*": continue  # skip identity
-        elif char == "U": index, invert = "U", False
-        elif char == "R": index, invert = "R", False
-        elif char == "F": index, invert = "F", False
-        elif char == "u": index, invert = "U", True
-        elif char == "r": index, invert = "R", True
-        elif char == "f": index, invert = "F", True
-        else: return " something went wrong!"
-
-        output += " " + axis[index][0] + ("'" if invert != axis[index][1] else "")
-
-        if axis[index][1]:  # we're rotating along an inverted axis (back face; containing MMM) -> udpate axis accordingly
-            if index == "U": # R->F and F->R'
-                axis = {"U": axis["U"], "R": (axis["F"][0], not axis["F"][1]), "F": axis["R"]}
-            elif index == "R":  # U->F' and F->U
-                axis = {"U": axis["F"], "R": axis[1], "F": (axis["U"][0], not axis["U"][1])}
-            elif index == "F":  # U->R and R->U'
-                axis = {"U": (axis["R"][0], not axis["R"][1]), "R": axis["U"], "F": axis["F"]}
-            else:
-                return " something went wrong!"
-    return output if output else " (do nothing)"
-
 class VisualSolver:
     # OCD convention definition
     Locations = [  # OCD
-        Point( 1,  1,  1),
-        Point( 1, -1,  1),
-        Point(-1, -1,  1),
-        Point(-1,  1,  1),
-        Point( 1,  1, -1),
-        Point( 1, -1, -1),
-        Point(-1, -1, -1),
-        Point(-1,  1, -1)]
+        Point( 1,  1,  1), # 0
+        Point( 1, -1,  1), # 1
+        Point(-1, -1,  1), # 2
+        Point(-1,  1,  1), # 3
+        Point( 1,  1, -1), # 4
+        Point( 1, -1, -1), # 5
+        Point(-1, -1, -1), # 6
+        Point(-1,  1, -1), # 7
+    ]
+
+    # Turn the absolute sequence into an axis-adjusted so lines up with visualisation
+    @staticmethod
+    def moveSequence(moves, axis):
+        if not (axis["U"] and axis["F"] and axis["R"]): return ""
+        output = ""
+        for char in moves:
+            if char == "*": continue  # skip identity
+            elif char == "U": index, invert = "U", False
+            elif char == "R": index, invert = "R", False
+            elif char == "F": index, invert = "F", False
+            elif char == "u": index, invert = "U", True
+            elif char == "r": index, invert = "R", True
+            elif char == "f": index, invert = "F", True
+            else: return " something went wrong!"
+
+            output += " " + axis[index][0] + ("'" if invert else "")
+            if axis[index][1]:  # the rotation moves along MMM (which determines orientation) -> udpate axis accordingly
+                if index == "U": # R->F and F->R' if not inverted
+                    axis = {"U": axis["U"], "R": (axis["F"][0], axis["F"][1] == invert), "F": (axis["R"][0], axis["R"][1] != invert)}
+                elif index == "R":  # U->F' and F->U if not inverted
+                    axis = {"U": (axis["F"][0], axis["F"][1] != invert), "R": axis["R"], "F": (axis["U"][0], axis["U"][1] == invert)}
+                elif index == "F":  # U->R and R->U' if not inverted
+                    axis = {"U": (axis["R"][0], axis["R"][1] == invert), "R": (axis["U"][0], axis["U"][1] != invert), "F": axis["F"]}
+                else:
+                    return " something went wrong!"
+
+        return output if output else " (do nothing)"
+
+    def compareComponents(self, v):
+        dU, dF, dR = v.dot(self.Uaxis), v.dot(self.Faxis), v.dot(self.Raxis)
+        mU, mF, mR = abs(dU), abs(dF), abs(dR)
+        m = max(mU, mF, mR)
+        if m == mU: return ("U", dU < 0)
+        if m == mF: return ("F", dF < 0)
+        if m == mR: return ("R", dR < 0)
+        return None
 
     def generateCube(self):
         mesh = []
@@ -385,42 +392,48 @@ class VisualSolver:
         cube = [piece.getType() for piece in self.pieces]
         if Point.Validate(cube) is None: return None
         if "" in cube:  # incomplete construction
-            self.path = None
-            self.solution = None
+            self.cached.absolute = self.cached.relative = None
         else:
             e = serialiseState(cube)
             with shelve.open("dbs/puppet.db", flag="r") as db:
                 if e in db:
-                    self.path = "optimal path:" + moveSequence(db[e][1])
-                    self.solution = "optimal solution:" + moveSequence(reverse(db[e][1]))
+                    self.cached.absolute = reverse(db[e][1])
+                    self.cached.relative = None
                 else:
-                    self.path = "this layout is unsolvable!"
-                    self.solution = None
+                    self.cached.absolute = -1
+                    self.cached.relative = None
+
+        for i in mesh: i.transform(Matrix.rotationT(-math.pi/2, Matrix.unitX) @ Matrix.rotationT(math.pi/2, Matrix.unitZ))
         return mesh
+
+    class Cached:
+        def __init__(self):
+            self.absolute = None
+            self.basis = None
+            self.relative = None
 
     def __init__(self):
         pygame.init()
         font = pygame.font.SysFont('Consolas', 18)
         window = pygame.display.set_mode((700, 700), pygame.RESIZABLE)
 
-        self.back = SimpleTag(BLACK)
-        self.bottom = SimpleTag(WHITE)
-
         self.cursor = None
         self.preserveCursor = False
-        self.path = None
-        self.solution = None
+        self.cached = VisualSolver.Cached()
         self.pieces = [CubePiece(self, location) for location in VisualSolver.Locations]
         self.pieces[6].fixed = "MMM"  # MMM should stay the same!
-        self.pieces[0].cycle()
-        self.pieces[1].cycle()
-        self.pieces[1].cycle()
-        self.pieces[1].cycle()
-        self.pieces[1].cycle()
+        for p, s in enumerate(CubePiece.Solved):
+            pass
+            if s: self.pieces[p].n = s
 
         self.bsptree = BSP()
         self.bsptree.build(self.generateCube())
 
+        # These are chosen so they match U, R and F rotations; depend on engine space orientation
+        self.Uaxis = Matrix.unitY
+        self.Faxis = Matrix.unitZ
+        self.Raxis = -Matrix.unitX 
+                
         transformation = Matrix.scaleT(.3)
         self.bsptree.dirty = True
         pygame.display.set_caption("Automated Solver")
@@ -491,22 +504,19 @@ class VisualSolver:
             if self.bsptree.dirty:
                 self.bsptree.dirty = False
 
-                newX = Matrix.applyTo(transformation, Matrix.unitX)  # fb
-                newY = Matrix.applyTo(transformation, Matrix.unitY)  # rl
-                newZ = Matrix.applyTo(transformation, Matrix.unitZ)  # ud
-                xx = newX.x
-                xy = newX.y
-                xz = newX.z
-                xx = newY.x
-                xy = newY.y
-                xz = newY.z
-                xx = newZ.x
-                xy = newZ.y
-                xz = newZ.z
+                common = Matrix.applyTo(transformation, Matrix.zero)
+                newU = self.compareComponents(Matrix.applyTo(transformation, self.Uaxis) - common)
+                newF = self.compareComponents(Matrix.applyTo(transformation, self.Faxis) - common)
+                newR = self.compareComponents(Matrix.applyTo(transformation, self.Raxis) - common)
+                # Basis dictionary tell us, for each canonical cube axis, which physical rotation we'd have to do to achieve it (and whether it's reversed)
+                newBasis = {"U": newU, "F": newF, "R": newR}
+                if newBasis != self.cached.basis:
+                    self.cached.basis = newBasis
+                    self.cached.relative = None
 
                 window.fill((128, 128, 128))
                 if self.preserveCursor:
-                    window.blit(font.render(str(self.pieces.index(self.cursor)), True, (0,0,0)), (0, 60))
+                    window.blit(font.render(str(self.pieces.index(self.cursor)), True, (0,0,0)), (0, 20))
                 self.bsptree.render(transformation)
                 if self.preserveCursor:
                     self.preserveCursor = False
@@ -517,8 +527,18 @@ class VisualSolver:
 
                 pygame.draw.circle(BSP.window, WHITE, (BSP.dims[0]//2, BSP.dims[1]//2), 3)
                 window.blit(font.render(str(self.bsptree.count), True, (0, 0, 0)), (0, 0))
-                if self.path: window.blit(font.render(self.path, True, (0, 0, 0)), (0, 20))
-                if self.solution: window.blit(font.render(self.solution, True, (0, 0, 0)), (0, 40))
+
+                if self.cached.absolute == -1:  # -> unsolvable
+                    window.blit(font.render("Unsolvable!", True, (0, 0, 0)), (0, 60))
+                elif self.cached.absolute is not None:  # -> solvable
+                    if self.cached.relative is None and self.cached.basis:
+                        self.cached.relative = VisualSolver.moveSequence(self.cached.absolute, self.cached.basis)  # compute relative solution from basis
+                    absolute = reverse(self.cached.absolute)
+                    relative = VisualSolver.moveSequence(absolute, self.cached.basis)
+
+                    if self.cached.relative: window.blit(font.render(f"Solution: {self.cached.relative}", True, (0, 0, 0)), (0, 60))
+                    window.blit(font.render(f"Solution (on default orientation): {self.cached.absolute}", True, (0, 0, 0)), (0, 80))
+
                 pygame.display.flip()
             clock.tick(60)
 

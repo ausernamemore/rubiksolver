@@ -47,7 +47,7 @@ All physically possible (non-intersecting) arrangements of the pieces are split 
         For the unsolvable groups, just divide the raw count by 3, as they have no symmetric elements.
 """
 
-    # Commet the line below out to run as command-line tool
+    # Comment the line below out to run as command-line tool
 VisualSolver()
 
 explorer = GroupExplorer("dbs/puppet.db", serialiseState, allMoves)
