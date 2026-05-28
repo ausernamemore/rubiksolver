@@ -220,7 +220,7 @@ class CubePiece(Tag):
 
     class Inner(Tag):
         def __init__(self, parent): self.parent = parent
-        def ondraw(self): return WHITE, (GREEN if self.parent.solver.cursor is self.parent else GRAY)
+        def ondraw(self): return WHITE, (GREEN if self.parent.solver.cursor.value is self.parent else GRAY)
 
     def __init__(self, solver, location):
         self.solver = solver
@@ -228,7 +228,7 @@ class CubePiece(Tag):
         self.location = location  # where this piece should be
         self.n = 0  # which type of piece this should be
         self.fixed = None
-    def ondraw(self): return self.color, (GREEN if self.solver.cursor is self and self.fixed is None else GRAY)
+    def ondraw(self): return self.color, (GREEN if self.solver.cursor.value is self and self.fixed is None else GRAY)
     def getType(self): return self.fixed if self.fixed else CubePiece.Options[self.n]
     def cycle(self):
         if self.fixed: return
@@ -338,6 +338,13 @@ class Cached:
         Stores a single value and allows for elegant update chaining between multipe Cached objects.
         Caches can be invalidated by dependencies and set to None; keep in mind when reading raw .value
         data or use .readSafe() instead.
+        
+        modifies(Cached) -> self :: chain another Cached object so it gets invalidated when this Cached changes
+        isInvalid() -> boolean :: returns whether this Cached is invalid or not
+        readSafe() -> value :: returns the value of this Cached if it's valid, throws InvalidCacheError otherwise
+        update(value=None) -> None :: updates the value of this Cached only if it's different than the current one
+            -> if value is None (or not passed), invalidates this Cached.
+        force(value) -> None :: updates the value of this Cached regardless whether it has changed or not
     """
     class InvalidCacheError(Exception): pass
     def __init__(self, value=None):
@@ -354,10 +361,12 @@ class Cached:
             raise Cached.InvalidCacheError()
         return self.value
     def update(self, newvalue=None):
-        if self.value == newvalue: return False  # signal no changes made
+        if self.value != newvalue:
+            self.force(newvalue)
+    def force(self, newvalue):
         self.value = newvalue
         for c in self.modifying: c.update()
-        return True  # signal changes have been made
+
 
 class VisualSolver:
     # Important: Do NOT change these coordinate points as they're tied to OCD!
@@ -407,7 +416,7 @@ class VisualSolver:
         if m == mR: return ("R", dR < 0)
         return None
 
-    def generateCube(self):
+    def generateTree(self):
         cube = [piece.getType() for piece in self.pieces]
         if Point.Validate(cube) is None: return None
 
@@ -425,7 +434,7 @@ class VisualSolver:
                 self.absolute.update(reverse(db[e][1]) if e in db else -1)
 
         for i in mesh: i.transform(Matrix.rotationT(-math.pi/2, Matrix.unitX) @ Matrix.rotationT(math.pi/2, Matrix.unitZ))
-        return mesh
+        self.tree.update(BSP.makeBSP(mesh))
 
     def __init__(self, optimised):
         self.optimised = optimised
@@ -433,7 +442,8 @@ class VisualSolver:
         font = pygame.font.SysFont('Consolas', 18)
         window = pygame.display.set_mode((700, 700), pygame.RESIZABLE)
 
-        self.cursor = None
+        screen = Cached()
+        self.cursor = Cached().modifies(screen)
         self.preserveCursor = False
         self.relative = Cached()
         self.absolute = Cached().modifies(self.relative)
@@ -441,21 +451,22 @@ class VisualSolver:
         self.pieces = [CubePiece(self, location) for location in VisualSolver.Locations]
         self.pieces[6].fixed = "MMM"  # MMM should stay the same!
         for p, s in enumerate(CubePiece.Solved):
-            pass
             if s: self.pieces[p].n = s
-
-        self.bsptree = BSP()
-        self.bsptree.build(self.generateCube())
 
         # These are chosen so they match U, R and F rotations; depend on engine space orientation
         self.Uaxis = Matrix.unitY
         self.Faxis = Matrix.unitZ
         self.Raxis = -Matrix.unitX 
-                
-        transformation = Matrix.scaleT(.3)
-        self.bsptree.dirty = True
+
+        transformation = Cached(value=Matrix.scaleT(.3)).modifies(screen)
+        def compose(new):
+            # Note: force() used here because equality on numpy matrices is fucked up
+            transformation.force(new @ transformation.value)
         pygame.display.set_caption("Automated Solver")
         clock = pygame.time.Clock()
+
+        self.tree = Cached().modifies(screen)
+        self.generateTree()
 
         BSP.window = window
         BSP.dims = pygame.display.get_surface().get_size()
@@ -465,69 +476,43 @@ class VisualSolver:
             for event in pygame.event.get():
                 if event.type == pygame.VIDEORESIZE:
                     BSP.dims = pygame.display.get_surface().get_size()
-                    self.bsptree.dirty=True
+                    screen.update()
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_f:
-                        if isinstance(self.cursor, CubePiece):
-                            # change the piece
-                            cube = None
-                            while cube is None:
-                                self.cursor.cycle()
-                                cube = self.generateCube()
-                            self.bsptree.build(cube)
-                            self.bsptree.dirty=True
+                        if not self.cursor.isInvalid():
+                            # change the current cursor piece
                             self.preserveCursor = True
+                            self.tree.update()
+                            while self.tree.isInvalid():
+                                self.cursor.value.cycle()
+                                self.generateTree()
 
                 elif event.type == pygame.QUIT:
                     quit()
 
             keys = pygame.key.get_pressed()
-            if keys[pygame.K_SPACE]:  # space and shift
-                transformation = Matrix.traslationT((0, +1*dt, 0)) @ transformation
-                self.bsptree.dirty=True
-            if keys[pygame.K_LSHIFT]:
-                transformation = Matrix.traslationT((0, -1*dt, 0)) @ transformation
-                self.bsptree.dirty=True
-            if keys[pygame.K_w]:  # w and s
-                transformation = Matrix.traslationT((0, 0, -1*dt)) @ transformation
-                self.bsptree.dirty=True
-            if keys[pygame.K_s]:
-                transformation = Matrix.traslationT((0, 0, +1*dt)) @ transformation
-                self.bsptree.dirty=True
-            if keys[pygame.K_d]:  # a and d
-                transformation = Matrix.traslationT((-1*dt, 0, 0)) @ transformation
-                self.bsptree.dirty=True
-            if keys[pygame.K_a]:
-                transformation = Matrix.traslationT((+1*dt, 0, 0)) @ transformation
-                self.bsptree.dirty=True
-            if keys[pygame.K_e]:  # q and e (rotation)
-                transformation = Matrix.rotationT(-20 * dt * math.pi/180, Matrix.unitZ) @ transformation
-                self.bsptree.dirty=True
-            if keys[pygame.K_q]:
-                transformation = Matrix.rotationT(20 * dt * math.pi/180, Matrix.unitZ) @ transformation
-                self.bsptree.dirty=True
-            if keys[pygame.K_LEFT]:  # left and right
-                transformation = Matrix.rotationT(-20 * dt * math.pi/180, Matrix.unitY) @ transformation
-                self.bsptree.dirty=True
-            if keys[pygame.K_RIGHT]:
-                transformation = Matrix.rotationT(20 * dt * math.pi/180, Matrix.unitY) @ transformation
-                self.bsptree.dirty=True
-            if keys[pygame.K_DOWN]:  # up and down
-                transformation = Matrix.rotationT(-20 * dt * math.pi/180, Matrix.unitX) @ transformation
-                self.bsptree.dirty=True
-            if keys[pygame.K_UP]:
-                transformation = Matrix.rotationT(20 * dt * math.pi/180, Matrix.unitX) @ transformation
-                self.bsptree.dirty=True
+            if keys[pygame.K_SPACE]: compose(Matrix.traslationT((0, +1*dt, 0)))
+            if keys[pygame.K_LSHIFT]: compose(Matrix.traslationT((0, -1*dt, 0)))
+            if keys[pygame.K_w]: compose(Matrix.traslationT((0, 0, -1*dt)))
+            if keys[pygame.K_s]: compose(Matrix.traslationT((0, 0, +1*dt)))
+            if keys[pygame.K_d]: compose(Matrix.traslationT((-1*dt, 0, 0)))
+            if keys[pygame.K_a]: compose(Matrix.traslationT((+1*dt, 0, 0)))
+            if keys[pygame.K_e]: compose(Matrix.rotationT(-20 * dt * math.pi/180, Matrix.unitZ))
+            if keys[pygame.K_q]: compose(Matrix.rotationT(20 * dt * math.pi/180, Matrix.unitZ))
+            if keys[pygame.K_LEFT]: compose(Matrix.rotationT(-20 * dt * math.pi/180, Matrix.unitY))
+            if keys[pygame.K_RIGHT]: compose(Matrix.rotationT(20 * dt * math.pi/180, Matrix.unitY))
+            if keys[pygame.K_DOWN]: compose(Matrix.rotationT(-20 * dt * math.pi/180, Matrix.unitX))
+            if keys[pygame.K_UP]: compose(Matrix.rotationT(20 * dt * math.pi/180, Matrix.unitX))
 
-            if self.bsptree.dirty:
-                self.bsptree.dirty = False
+            if screen.isInvalid():
+                screen.update(True)
 
-                common = Matrix.applyTo(transformation, Matrix.zero)
-                # Basis dictionary tell us, for each canonical cube axis, which physical rotation achieves it (and whether it's reversed)
+                # basis tell us, for each original cube axis, which physical axis carries it now (and whether it's reversed)
+                common = Matrix.applyTo(transformation.value, Matrix.zero)
                 newBasis = {
-                    "U": self.compareComponents(Matrix.applyTo(transformation, self.Uaxis) - common),
-                    "F": self.compareComponents(Matrix.applyTo(transformation, self.Faxis) - common),
-                    "R": self.compareComponents(Matrix.applyTo(transformation, self.Raxis) - common)}
+                    "U": self.compareComponents(Matrix.applyTo(transformation.value, self.Uaxis) - common),
+                    "F": self.compareComponents(Matrix.applyTo(transformation.value, self.Faxis) - common),
+                    "R": self.compareComponents(Matrix.applyTo(transformation.value, self.Raxis) - common)}
                 if ((not newBasis["U"]) or (not newBasis["F"]) or (not newBasis["R"])
                         or newBasis["U"][0] == newBasis["F"][0]
                         or newBasis["F"][0] == newBasis["R"][0]
@@ -536,17 +521,20 @@ class VisualSolver:
                 self.oriented.update(newBasis)
 
                 window.fill((128, 128, 128))
-                self.bsptree.render(transformation)
-                if self.preserveCursor:
-                    self.preserveCursor = False
-                else:
-                    if self.bsptree.cursor != self.cursor:  # cursor changed -> update cursor and force redraw
-                        self.cursor = self.bsptree.cursor.parent if isinstance(self.bsptree.cursor, CubePiece.Inner) else self.bsptree.cursor
-                        self.bsptree.dirty = True
+
+                BSP.count = 0
+                BSP.cursor = None
+                BSP.consultBSP(self.tree.readSafe(), transformation.value)
+                self.cursor.update(
+                    self.cursor.value if self.preserveCursor else  # if we just pressed F, don't change cursor!
+                    BSP.cursor.parent if isinstance(BSP.cursor, CubePiece.Inner) else
+                    BSP.cursor if isinstance(BSP.cursor, CubePiece) else
+                    None)
+                self.preserveCursor = False
 
                 pygame.draw.circle(BSP.window, WHITE, (BSP.dims[0]//2, BSP.dims[1]//2), 3)
                 window.blit(font.render(f"WASD, SHIFT and SPACE to move. Arrow keys to adjust camera. Press F on a piece to swap it.", True, (0, 0, 0)), (10, 10))
-                window.blit(font.render(f"{self.bsptree.count} polygons visible", True, (80, 80, 80)), (10, 40))
+                window.blit(font.render(f"{BSP.count} polygons visible", True, (80, 80, 80)), (10, 40))
 
                 if self.absolute.value == -1:  # -> unsolvable
                     window.blit(font.render("Unsolvable!", True, (0, 0, 0)), (0, 70))
@@ -558,5 +546,6 @@ class VisualSolver:
                     window.blit(font.render(f"Solution: {self.relative.value}", True, (0, 0, 0)), (10, 100))
 
                 pygame.display.flip()
+
             clock.tick(60)
 

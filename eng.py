@@ -111,6 +111,10 @@ class BSP:
     camera = pygame.math.Vector3(0, 0, -1)
     # camera point; change Z to adjust FOV (must always be negative; the closer to 0 the wider and more distorted)
     windowPlane = Plane(lambda x: x[2], lambda x: x[2])
+    
+    # outputs
+    count = 0
+    cursor = None
 
     @staticmethod
     def pointProject(p):
@@ -183,7 +187,7 @@ class BSP:
         return (BSP.makeBSP(backs), pivot, BSP.makeBSP(fronts))
 
     @staticmethod
-    def consultBSP(bsp, matrix, results):
+    def consultBSP(bsp, matrix):
         if not bsp: return
         back, tp, front = bsp
 
@@ -193,30 +197,17 @@ class BSP:
             (Matrix.applyTo(matrix, tp.c[0]), tp.c[1]))
 
         if BSP.mkD(transTP).distf(BSP.camera) > 0:  # camera is in front of polygon -> render back ones, then polygon, then front ones
-            BSP.consultBSP(back, matrix, results)
+            BSP.consultBSP(back, matrix)
             f, _ = BSP.polySlice(BSP.windowPlane, transTP)
             for p in f:
                 p.render()
-                results.count += 1
-                if p.crossesZ(): results.cursor = p.tag
-            BSP.consultBSP(front, matrix, results)
+                BSP.count += 1
+                if p.crossesZ(): BSP.cursor = p.tag
+            BSP.consultBSP(front, matrix)
         else:  # camera is behind polygon -> render front ones, then back ones (skip polygon itself; back-face culling)
-            BSP.consultBSP(front, matrix, results)
-            BSP.consultBSP(back, matrix, results)
+            BSP.consultBSP(front, matrix)
+            BSP.consultBSP(back, matrix)
 
-
-    def __init__(self):
-        self.count = 0
-        self.cursor = None
-        self.tree = None
-
-    def build(self, polygons):
-        self.tree = BSP.makeBSP(polygons)
-    
-    def render(self, matrix):
-        self.count = 0
-        self.cursor = None
-        BSP.consultBSP(self.tree, matrix, self)
 
 class Bases:
     """

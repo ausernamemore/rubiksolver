@@ -48,7 +48,8 @@ All physically possible (non-intersecting) arrangements of the pieces are split 
 """
 
     # Comment the line below out to run as command-line tool
-VisualSolver()
+VisualSolver(optimised=True)
+    # Set optimised=True to hide internal faces (improves CPU usage but looks slightly uglier)
 
 explorer = GroupExplorer("dbs/puppet.db", serialiseState, allMoves)
     # You can download the fully-explored puppet.db or compute it yourself
