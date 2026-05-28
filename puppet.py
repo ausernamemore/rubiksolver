@@ -409,12 +409,13 @@ class VisualSolver:
         font = pygame.font.SysFont('Consolas', 18)
         window = pygame.display.set_mode((700, 700), pygame.RESIZABLE)
 
-        screen = Cached()
-        self.cursor = Cached().invalidates(screen)
+        self.cursor = Cached()
         self.preserveCursor = False
-        self.relative = Cached()
-        self.absolute = Cached().invalidates(self.relative)
-        self.oriented = Cached().invalidates(self.relative)
+        self.absolute = Cached()
+        self.oriented = Cached()
+        self.relative = (Cached()
+            .dependsOn(self.absolute)
+            .dependsOn(self.oriented))
         self.pieces = [CubePiece(self, location) for location in VisualSolver.Locations]
         self.pieces[6].fixed = "MMM"  # MMM should stay the same!
         for p, s in enumerate(CubePiece.Solved):
@@ -425,15 +426,19 @@ class VisualSolver:
         self.Faxis = Matrix.unitZ
         self.Raxis = -Matrix.unitX 
 
-        transformation = Cached(value=Matrix.scaleT(.3)).invalidates(screen)
+        transformation = Cached(value=Matrix.scaleT(.3))
         def compose(new):
             # Note: set() used here because equality on numpy matrices is fucked up
             transformation.set(new @ transformation.readSafe())
         pygame.display.set_caption("Automated Solver")
         clock = pygame.time.Clock()
 
-        self.tree = Cached().invalidates(screen)
+        self.tree = Cached()
         self.generateTree()
+        screen = (Cached()
+            .dependsOn(self.tree)
+            .dependsOn(transformation)
+            .dependsOn(self.cursor))
 
         BSP.window = window
         BSP.dims = pygame.display.get_surface().get_size()

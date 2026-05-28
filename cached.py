@@ -3,13 +3,14 @@
     Caches can be invalidated by dependencies and set to None; keep in mind when reading raw .value
     data or use .readSafe() instead.
     
+    dependsOn(Cached) -> self :: chain another Cached object so this Cached gets invalidated when it changes
     invalidates(Cached) -> self :: chain another Cached object so it gets invalidated when this Cached changes
     isInvalid() -> boolean :: returns whether this Cached is invalid or not
     readSafe() -> value :: returns the value of this Cached if it's valid, throws InvalidCacheError otherwise
     set(value=None) -> None :: updates the value of this Cached regardless whether it has changed or not
         -> Note: call without arguments to invalidate this Cached.
     update(value) -> None :: same as set(), but checks if new value equals (==) current one to avoid unnecessary updates
-        -> Note: relies on comparing (__eq__) values.
+        -> Note: relies on comparing (__eq__) the values.
 """
 
 class Cached:
@@ -19,6 +20,10 @@ class Cached:
         self.modifying = []
         self.value = value
 
+    def dependsOn(self, c):
+        if not isinstance(c, Cached): raise Exception("Cached objects can only depend on other cached objects!")
+        c.modifying.append(self)
+        return self
     def invalidates(self, c):
         if not isinstance(c, Cached): raise Exception("Cached objects can only modify other cached objects!")
         self.modifying.append(c)
@@ -26,7 +31,6 @@ class Cached:
 
     def isInvalid(self):
         return self.value is None
-
     def readSafe(self):
         if self.value is None:
             raise Cached.InvalidCacheError()
