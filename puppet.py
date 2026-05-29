@@ -213,7 +213,8 @@ GREEN = (0, 255, 0)
 DGREEN = (0, 128, 0)
 CYAN = (0, 128, 128)
 MAGENTA = (255, 0, 255)
-GRAY = (64, 64, 64)
+GRAY = (128, 128, 128)
+DGRAY = (64, 64, 64)
 
 class CubePiece(Tag):
     Options = ["", "rlL", "udL", "fbL", "rlB", "udB", "fbB", "CCC"]
@@ -221,7 +222,7 @@ class CubePiece(Tag):
 
     class Inner(Tag):
         def __init__(self, parent): self.parent = parent
-        def ondraw(self): return WHITE, (GREEN if self.parent.solver.cursor.value is self.parent else GRAY)
+        def ondraw(self): return BLACK, None
 
     def __init__(self, solver, location):
         self.solver = solver
@@ -229,7 +230,7 @@ class CubePiece(Tag):
         self.location = location  # where this piece should be
         self.n = 0  # which type of piece this should be
         self.fixed = None
-    def ondraw(self): return self.color, (GREEN if self.solver.cursor.value is self and self.fixed is None else GRAY)
+    def ondraw(self): return self.color, (GREEN if self.solver.cursor.value is self and self.fixed is None else DGRAY)
     def getType(self): return self.fixed if self.fixed else CubePiece.Options[self.n]
     def cycle(self):
         if self.fixed: return
@@ -241,7 +242,7 @@ class CubePiece(Tag):
         inner = None if self.solver.optimised else self.inner
 
         if ptype == "":
-            self.color = None
+            self.color = GRAY
             return o.scale(2, 2, 2), (
                 Bases.paralog(self, o.scale(3, 3, 3), o.scale(1, 3, 3), o.scale(3, 1, 3)) +
                 Bases.paralog(self, o.scale(3, 3, 3), o.scale(3, 1, 3), o.scale(3, 3, 1)) +
@@ -263,7 +264,14 @@ class CubePiece(Tag):
                 #Bases.paralog(inner, o.scale(-1, -3, 3), o.scale(1, -3, 3), o.scale(-1, -3, 1)) +
                 Bases.paralog(self, o.scale(3, 3, 3), o.scale(3, 3, -1), o.scale(3, -1, 3)) +  # main block
                 Bases.paralog(self, o.scale(3, 3, 3), o.scale(-1, 3, 3), o.scale(3, 3, -1)) +
-                Bases.paralog(self, o.scale(3, 3, 3), o.scale(3, -1, 3), o.scale(-1, 3, 3)))
+                Bases.paralog(self, o.scale(3, 3, 3), o.scale(3, -1, 3), o.scale(-1, 3, 3)) +
+
+                Bases.paralog(self, o.scale(1, -3, 3), o.scale(-1, -3, 3), o.scale(1, -3, -3)) + # X strip
+                Bases.paralog(self, o.scale(1, 3, -3), o.scale(-1, 3, -3), o.scale(1, -3, -3)) +
+                Bases.paralog(self, o.scale(-3, 1, 3), o.scale(-3, -1, 3), o.scale(-3, 1, -3)) + # Y strip
+                Bases.paralog(self, o.scale(3, 1, -3), o.scale(3, -1, -3), o.scale(-3, 1, -3)) +
+                Bases.paralog(self, o.scale(-3, 3, 1), o.scale(-3, 3, -1), o.scale(-3, -3, 1)) + # Z strip
+                Bases.paralog(self, o.scale(3, -3, 1), o.scale(3, -3, -1), o.scale(-3, -3, 1)))
         if ptype == "CCC":
             self.color = ORANGE
             return o.scale(3, 3, 3), (
@@ -493,7 +501,7 @@ class VisualSolver:
                     newBasis = None
                 self.oriented.update(newBasis)
 
-                window.fill((128, 128, 128))
+                window.fill(GRAY)
 
                 BSP.count = 0
                 BSP.cursor = None
