@@ -4,8 +4,6 @@
     data or use .readSafe() instead.
     
     dependsOn(Cached) -> self :: chain another Cached object so this Cached gets invalidated when it changes
-    invalidates(Cached) -> self :: chain another Cached object so it gets invalidated when this Cached changes
-    isInvalid() -> boolean :: returns whether this Cached is invalid or not
     readSafe() -> value :: returns the value of this Cached if it's valid, throws InvalidCacheError otherwise
     set(value=None) -> None :: updates the value of this Cached regardless whether it has changed or not
         -> Note: call without arguments to invalidate this Cached.
@@ -24,13 +22,7 @@ class Cached:
         if not isinstance(c, Cached): raise Exception("Cached objects can only depend on other cached objects!")
         c.modifying.append(self)
         return self
-    def invalidates(self, c):
-        if not isinstance(c, Cached): raise Exception("Cached objects can only modify other cached objects!")
-        self.modifying.append(c)
-        return self
 
-    def isInvalid(self):
-        return self.value is None
     def readSafe(self):
         if self.value is None:
             raise Cached.InvalidCacheError()

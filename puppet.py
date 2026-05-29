@@ -96,7 +96,7 @@ def doR(cube):  # rotate around Y axis
         cube[6],
         rotateY90(cube[3])]
 
-def do120(cube):  # Rotate cube 120 degrees around cube[0,6] diagonal (keeping CC in place) in x->y->z direction
+def do120(cube):  # Rotate cube 120 degrees around cube[0,6] diagonal (keeping MMM in place) in x->y->z direction
     return [  # OCD
         changeAxis(cube[0]),
         changeAxis(cube[3]),
@@ -451,11 +451,11 @@ class VisualSolver:
                     screen.set()
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_f:
-                        if not self.cursor.isInvalid():
+                        if self.cursor.value is not None:
                             # change the current cursor piece
                             self.preserveCursor = True
                             self.tree.set()
-                            while self.tree.isInvalid():
+                            while self.tree.value is None:
                                 self.cursor.readSafe().cycle()
                                 self.generateTree()
 
@@ -476,7 +476,7 @@ class VisualSolver:
             if keys[pygame.K_DOWN]: compose(Matrix.rotationT(-20 * dt * math.pi/180, Matrix.unitX))
             if keys[pygame.K_UP]: compose(Matrix.rotationT(20 * dt * math.pi/180, Matrix.unitX))
 
-            if screen.isInvalid():
+            if screen.value is None:
                 screen.update(True)
 
                 # basis tell us, for each original cube axis, which physical axis carries it now (and whether it's reversed)
@@ -512,7 +512,7 @@ class VisualSolver:
                     window.blit(font.render("Unsolvable!", True, (0, 0, 0)), (0, 70))
                 elif self.absolute.value is not None:  # -> solvable
                     window.blit(font.render(f"Solution (orientationless): {self.absolute.value}", True, (0, 0, 0)), (10, 70))
-                    if self.oriented.value and self.relative.isInvalid():  # compute relative solution from basis
+                    if self.oriented.value and (self.relative.value is None):  # compute relative solution from basis
                         self.generateSequence()
                 if self.relative.value:
                     window.blit(font.render(f"Solution: {self.relative.value}", True, (0, 0, 0)), (10, 100))
