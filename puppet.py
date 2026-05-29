@@ -403,7 +403,7 @@ class VisualSolver:
         for i in mesh: i.transform(Matrix.rotationT(-math.pi/2, Matrix.unitX) @ Matrix.rotationT(math.pi/2, Matrix.unitZ))
         self.tree.update(BSP.makeBSP(mesh))
 
-    def __init__(self, optimised):
+    def __init__(self, optimised=False):
         self.optimised = optimised
         pygame.init()
         font = pygame.font.SysFont('Consolas', 18)
