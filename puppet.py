@@ -352,8 +352,8 @@ class VisualSolver:
     # Turn the absolute sequence into an axis-adjusted so lines up with visualisation
     def generateSequence(self):
         output = ""
-        axis = self.oriented.readSafe()
-        for char in self.absolute.readSafe():
+        axis = self.oriented.value
+        for char in self.absolute.value:
             if char == "*": continue  # skip identity
             elif char == "U": index, invert = "U", False
             elif char == "R": index, invert = "R", False
@@ -394,7 +394,7 @@ class VisualSolver:
             mesh.extend(points)
 
         if "" in cube:  # incomplete construction
-            self.absolute.set()
+            self.absolute.update(None)
         else:
             e = serialiseState(cube)
             with shelve.open("dbs/puppet.db", flag="r") as db:
@@ -426,16 +426,17 @@ class VisualSolver:
         self.Faxis = Matrix.unitZ
         self.Raxis = -Matrix.unitX 
 
-        transformation = Cached(value=Matrix.scaleT(.3))
+        transformation = Cached(Matrix.scaleT(.3))
         def compose(new):
-            # Note: set() used here because equality on numpy matrices is fucked up
-            transformation.set(new @ transformation.readSafe())
+            # Note: set() used here instead of update() because equality on numpy matrices is fucked up
+            # (also, the chances of update() ever saving us an update here are slim)
+            transformation.set(new @ transformation.value)
         pygame.display.set_caption("Automated Solver")
         clock = pygame.time.Clock()
 
         self.tree = Cached()
         self.generateTree()
-        screen = (Cached()
+        dirty = (Cached(True)  # becomes True when someting changes; manually set to False once screen is updated
             .dependsOn(self.tree)
             .dependsOn(transformation)
             .dependsOn(self.cursor))
@@ -448,15 +449,15 @@ class VisualSolver:
             for event in pygame.event.get():
                 if event.type == pygame.VIDEORESIZE:
                     BSP.dims = pygame.display.get_surface().get_size()
-                    screen.set()
+                    dirty.reset()
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_f:
                         if self.cursor.value is not None:
                             # change the current cursor piece
                             self.preserveCursor = True
-                            self.tree.set()
+                            self.tree.update(None)
                             while self.tree.value is None:
-                                self.cursor.readSafe().cycle()
+                                self.cursor.value.cycle()
                                 self.generateTree()
 
                 elif event.type == pygame.QUIT:
@@ -476,15 +477,15 @@ class VisualSolver:
             if keys[pygame.K_DOWN]: compose(Matrix.rotationT(-20 * dt * math.pi/180, Matrix.unitX))
             if keys[pygame.K_UP]: compose(Matrix.rotationT(20 * dt * math.pi/180, Matrix.unitX))
 
-            if screen.value is None:
-                screen.update(True)
+            if dirty.value:
+                dirty.update(False)
 
                 # basis tell us, for each original cube axis, which physical axis carries it now (and whether it's reversed)
-                common = Matrix.applyTo(transformation.readSafe(), Matrix.zero)
+                common = Matrix.applyTo(transformation.value, Matrix.zero)
                 newBasis = {
-                    "U": self.compareComponents(Matrix.applyTo(transformation.readSafe(), self.Uaxis) - common),
-                    "F": self.compareComponents(Matrix.applyTo(transformation.readSafe(), self.Faxis) - common),
-                    "R": self.compareComponents(Matrix.applyTo(transformation.readSafe(), self.Raxis) - common)}
+                    "U": self.compareComponents(Matrix.applyTo(transformation.value, self.Uaxis) - common),
+                    "F": self.compareComponents(Matrix.applyTo(transformation.value, self.Faxis) - common),
+                    "R": self.compareComponents(Matrix.applyTo(transformation.value, self.Raxis) - common)}
                 if ((not newBasis["U"]) or (not newBasis["F"]) or (not newBasis["R"])
                         or newBasis["U"][0] == newBasis["F"][0]
                         or newBasis["F"][0] == newBasis["R"][0]
@@ -496,7 +497,7 @@ class VisualSolver:
 
                 BSP.count = 0
                 BSP.cursor = None
-                BSP.consultBSP(self.tree.readSafe(), transformation.readSafe())
+                BSP.consultBSP(self.tree.value, transformation.value)
                 self.cursor.update(
                     self.cursor.value if self.preserveCursor else  # if we just pressed F, don't change cursor!
                     BSP.cursor.parent if isinstance(BSP.cursor, CubePiece.Inner) else
