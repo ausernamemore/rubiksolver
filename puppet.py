@@ -26,6 +26,8 @@ from cached import *
     the puzzle is restored to its cube shape.
 """
 
+PUPPETDB = "dbs/puppet.db"
+
 def serialiseState(cube):
     # Get unique string representation of a cube state
     if cube is None: raise Exception("State to serialise is None!")
@@ -343,6 +345,57 @@ class CubePiece(Tag):
                 Bases.paralog(self, o.scale(5, 1, 3), o.scale(5, 1, -1), o.scale(5, 5, 3)))
 
 
+def countSymmetricArrangements():
+    """ Symmetric elements:
+        Because there are two unique pieces (MMM and CCC), the only symmetry the cube can have is through
+    the diagonal (120°) that keeps both of those fixed. Then because L Blocks and Big Blocks are different,
+    they have to be either all L Blocks around MMM and all Big Blocks around CCC (as in the solved state),
+    or vice versa. Finally, because it must be rotationally symmetric, all L Blocks must be either clockwise
+    or counterclockwise, and similarly with Big Blocks.
+    That means there can only be: 2(from LB swap) * 3(L Blocks flip) * 3(Big Blocks flip) = 18.
+    Of those, only 10 are possible arrangements (the other 8 self-intersect). Below is code to verify this.
+    """
+
+    #BxLx -> normal
+    #LxBx -> LB swapped
+    #. -> no flip
+    #+ -> flipped clockwise
+    #- -> flipped counterclockwise
+
+    # These are all 18 symmetric candidates
+    candidates = {
+        # Physically possible arrangements:
+        "B.L.": ["CCC", "rlB", "udL", "fbB", "udB", "fbL", "MMM", "rlL"],  # <-- solved state
+        "L.B.": ["CCC", "rlL", "udB", "fbL", "udL", "fbB", "MMM", "rlB"],  # <-- cool shape btw!
+        "B.L+": ["CCC", "rlB", "fbL", "fbB", "udB", "rlL", "MMM", "udL"],
+        "L+B.": ["CCC", "fbL", "udB", "udL", "rlL", "fbB", "MMM", "rlB"],
+        "B.L-": ["CCC", "rlB", "rlL", "fbB", "udB", "udL", "MMM", "fbL"],
+        "L-B.": ["CCC", "udL", "udB", "rlL", "fbL", "fbB", "MMM", "rlB"],
+        "B-L-": ["CCC", "udB", "rlL", "rlB", "fbB", "udL", "MMM", "fbL"],
+        "L-B-": ["CCC", "udL", "rlB", "rlL", "fbL", "udB", "MMM", "fbB"],
+        "B+L+": ["CCC", "fbB", "fbL", "udB", "rlB", "rlL", "MMM", "udL"],
+        "L+B+": ["CCC", "fbL", "fbB", "udL", "rlL", "rlB", "MMM", "udB"],
+
+        # Impossible arrangements:
+        "B+L.": ["CCC", "fbB", "udL", "udB", "rlB", "fbL", "MMM", "rlL"],
+        "L.B+": ["CCC", "rlL", "fbB", "fbL", "udL", "rlB", "MMM", "udB"],
+        "B-L.": ["CCC", "udB", "udL", "rlB", "fbB", "fbL", "MMM", "rlL"],
+        "L.B-": ["CCC", "rlL", "rlB", "fbL", "udL", "udB", "MMM", "fbB"],
+        "B-L+": ["CCC", "udB", "fbL", "rlB", "fbB", "rlL", "MMM", "udL"],
+        "L+B-": ["CCC", "fbL", "rlB", "udL", "rlL", "udB", "MMM", "fbB"],
+        "B+L-": ["CCC", "fbB", "rlL", "udB", "rlB", "udL", "MMM", "fbL"],
+        "L-B+": ["CCC", "udL", "fbB", "rlL", "fbL", "rlB", "MMM", "udB"],
+    }
+
+    solvable = GroupExplorer(PUPPETDB, serialiseState, allMoves)
+    for k, v in candidates.items():
+        isSymmetric = v == do120(v)
+        isValid = Point.Validate(v) is not None
+        isSolvable = solvable.lookup(serialiseState(v))
+        print(f"Is {k} symmetric? {isSymmetric}. Is it valid? {isValid}")
+        if isValid: print(f"    Construction path? {solvable.lookup(serialiseState(v))}")
+
+
 class VisualSolver:
     # Important: Do NOT change these coordinate points as they're tied to OCD!
         #If you want to rotate the cube, simply apply the rotation after generating the mesh instead.
@@ -399,7 +452,7 @@ class VisualSolver:
             self.absolute.update(None)
         else:
             e = serialiseState(cube)
-            with shelve.open("dbs/puppet.db", flag="r") as db:
+            with shelve.open(PUPPETDB, flag="r") as db:
                 self.absolute.update(reverse(db[e][1]) if e in db else -1)
 
         mesh = []
