@@ -156,7 +156,6 @@ class Point:
     def Validate(cube):
         if cube is None: return None
         occupied = []
-        print(f"Validating {cube}...")
         for piece, loc in zip(cube, VisualSolver.Locations): occupied.extend(Point.PlacePiece(piece, loc))
         points = set()
         for p in occupied:
