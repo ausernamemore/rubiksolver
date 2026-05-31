@@ -122,32 +122,32 @@ class Point:
     @staticmethod
     def PlacePiece(piece, o):
         if piece == "": return []
-        if piece == "MMM":
+        if piece[:3] == "MMM":
             return [o.scale(1, 1, 1),
                 o.scale(1, 1, 0), o.scale(1, 0, 1), o.scale(0, 1, 1),
                 o.scale(0, 0, 1), o.scale(0, 1, 0), o.scale(1, 0, 0)]
-        if piece == "CCC":
+        if piece[:3] == "CCC":
             return [o.scale(1, 1, 1),
                 o.scale(1, 1, 2), o.scale(1, 2, 1), o.scale(2, 1, 1),
                 o.scale(2, 2, 1), o.scale(2, 1, 2), o.scale(1, 2, 2),
                 o.scale(2, 2, 2)]
         # L pattern: [o, fix active axis in 2 and combine others with (0,1)]
-        if piece == "fbL":
+        if piece[:3] == "fbL":
             return [o.scale(1, 1, 1), o.scale(2, 1, 1), o.scale(2, 1, 0), o.scale(2, 0, 1), o.scale(2, 0, 0)]
-        if piece == "rlL":
+        if piece[:3] == "rlL":
             return [o.scale(1, 1, 1), o.scale(1, 2, 1), o.scale(1, 2, 0), o.scale(0, 2, 1), o.scale(0, 2, 0)]
-        if piece == "udL":
+        if piece[:3] == "udL":
             return [o.scale(1, 1, 1), o.scale(1, 1, 2), o.scale(0, 1, 2), o.scale(1, 0, 2), o.scale(0, 0, 2)]
         # B pattern: [o, fix active axis in 1 and combine others with (1,2), fix active axis in 0 and combine others with (1,2)]
-        if piece == "fbB":
+        if piece[:3] == "fbB":
             return [o.scale(1, 1, 1),
                 o.scale(1, 2, 2), o.scale(1, 1, 2), o.scale(1, 2, 1),
                 o.scale(0, 2, 2), o.scale(0, 1, 2), o.scale(0, 2, 1)]
-        if piece == "rlB":
+        if piece[:3] == "rlB":
             return [o.scale(1, 1, 1),
                 o.scale(2, 1, 2), o.scale(2, 1, 1), o.scale(1, 1, 2),
                 o.scale(2, 0, 2), o.scale(2, 0, 1), o.scale(1, 0, 2)]
-        if piece == "udB":
+        if piece[:3] == "udB":
             return [o.scale(1, 1, 1),
                 o.scale(2, 2, 1), o.scale(2, 1, 1), o.scale(1, 2, 1),
                 o.scale(2, 2, 0), o.scale(2, 1, 0), o.scale(1, 2, 0)]
@@ -156,7 +156,8 @@ class Point:
     def Validate(cube):
         if cube is None: return None
         occupied = []
-        for cube, loc in zip(cube, VisualSolver.Locations): occupied.extend(Point.PlacePiece(cube, loc))
+        print(f"Validating {cube}...")
+        for piece, loc in zip(cube, VisualSolver.Locations): occupied.extend(Point.PlacePiece(piece, loc))
         points = set()
         for p in occupied:
             p = f"{p[0]}.{p[1]}.{p[2]}"
@@ -395,18 +396,18 @@ class VisualSolver:
         cube = [piece.getType() for piece in self.pieces]
         if Point.Validate(cube) is None: return None
 
-        mesh = []
-        for piece in self.pieces:
-            center, points = piece.getPolygons()
-            for i in points: i.orient(center)
-            mesh.extend(points)
-
         if "" in cube:  # incomplete construction
             self.absolute.update(None)
         else:
             e = serialiseState(cube)
             with shelve.open("dbs/puppet.db", flag="r") as db:
                 self.absolute.update(reverse(db[e][1]) if e in db else -1)
+
+        mesh = []
+        for piece in self.pieces:
+            center, points = piece.getPolygons()
+            for i in points: i.orient(center)
+            mesh.extend(points)
 
         for i in mesh: i.transform(Matrix.rotationT(-math.pi/2, Matrix.unitX) @ Matrix.rotationT(math.pi/2, Matrix.unitZ))
         self.tree.update(BSP.makeBSP(mesh))
