@@ -49,19 +49,15 @@ class GroupExplorer:
     """
         Call to perform a depth-limited search on the puzzle, providing an identity/base state as starting point
     """
-    def runSearch(self, stateIdentity, default=64):
+    def runSearch(self, stateIdentity, depth):
         with shelve.open(self.path) as db:
             identity = self.serialiser(stateIdentity)
             if identity in db and db[identity][1] != "*":
                 raise Exception(
-                    "Warning: the starting position provided does not match the stored identity. This will corrupt the database!")
-
-            depth = input(f"Depth of search ({default})? ")
-            if depth == "": depth = default
+                    "Warning: the starting position provided does not match the stored identity. Proceeding will corrupt the database!")
             s = time.time()
-            exhausted = self._explore(db, int(depth), "*", stateIdentity)
-            print(f"Search finished! Took {time.time() - s} seconds!")
-            if exhausted: print("~> All group space explored!")
+            self._explore(db, depth, "*", stateIdentity)
+            return time.time() - s
 
     """
         Call to print full list of each explored state, its explored depth (-1 if fully explored), and the optimal sequence to reach it.
