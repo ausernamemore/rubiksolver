@@ -59,6 +59,10 @@ class GroupExplorer:
             self._explore(db, depth, "*", stateIdentity)
             return time.time() - s
 
+    def getResults(self):
+        with shelve.open(self.path) as db:
+            return list(db.items())
+
     """
         Call to print full list of each explored state, its explored depth (-1 if fully explored), and the optimal sequence to reach it.
         Returns the order (size) of the group if fully explored, and None otherwise.

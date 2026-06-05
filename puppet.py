@@ -155,8 +155,12 @@ class Point:
                 o.scale(2, 2, 0), o.scale(2, 1, 0), o.scale(1, 2, 0)]
         raise Exception(f"Unknown piece label {piece}!")
     @staticmethod
-    def Validate(cube):
+    def Validate(cube, discardSymmetric=False):
         if cube is None: return None
+
+        # Reject symmetric arrangements
+        if discardSymmetric and cube == do120(cube): return None
+
         occupied = []
         for piece, loc in zip(cube, VisualSolver.Locations): occupied.extend(Point.PlacePiece(piece, loc))
         points = set()
@@ -187,7 +191,7 @@ def reverse(seq):
             "?") + result
     return result
 
-allMoves = {
+legalMoves = {
     "o": do120,  # no need to validate because reorienting is always legal
     "U": lambda c: Point.Validate(doU(c)),
     "R": lambda c: Point.Validate(doR(c)),
@@ -201,6 +205,15 @@ allMoves = {
         the element at index 6 (OCD) of the generator can never move to a different position.
     -> For convention, I chose to keep the MMM there, because it contains the centers so it makes sense it doesn't move
 """
+
+asymmetricMoves = {
+    "U": lambda c: Point.Validate(doU(c), discardSymmetric=True),
+    "R": lambda c: Point.Validate(doR(c), discardSymmetric=True),
+    "F": lambda c: Point.Validate(doF(c), discardSymmetric=True),
+    "u": lambda c: Point.Validate(doU(doU(doU(c))), discardSymmetric=True),  # U'
+    "r": lambda c: Point.Validate(doR(doR(doR(c))), discardSymmetric=True),  # R'
+    "f": lambda c: Point.Validate(doF(doF(doF(c))), discardSymmetric=True),  # F'
+}
 
 #-------------------------------------------------#
     # 3d processing code
@@ -218,25 +231,32 @@ MAGENTA = (255, 0, 255)
 GRAY = (128, 128, 128)
 DGRAY = (64, 64, 64)
 
+OLD = object()
+
 class CubePiece(Tag):
     Options = ["", "rlL", "udL", "fbL", "rlB", "udB", "fbB", "CCC"]
-    Solved = [7, 4, 2, 6, 5, 3, None, 1]
 
     class Inner(Tag):
         def __init__(self, parent): self.parent = parent
         def ondraw(self): return BLACK, None
 
-    def __init__(self, solver, location):
+    def __init__(self, solver, i, location):
         self.solver = solver
         self.inner = CubePiece.Inner(self)
         self.location = location  # where this piece should be
-        self.n = 0  # which type of piece this should be
+        self.index = i  # which index of pieces this piece corresponds to
         self.fixed = None
-    def ondraw(self): return self.color, (GREEN if self.solver.cursor.value is self and self.fixed is None else DGRAY)
-    def getType(self): return self.fixed if self.fixed else CubePiece.Options[self.n]
+    def ondraw(self): return self.color, (GREEN if self.solver.cursor.get() is self and self.fixed is None else DGRAY)
+    def getType(self): return self.solver.cube.get()[self.index]
     def cycle(self):
         if self.fixed: return
-        self.n = (self.n + 1) % len(CubePiece.Options)
+        i = CubePiece.Options.index(self.getType())
+        cube2 = self.solver.cube.get().copy()
+        while True:
+            i = (i + 1) % len(CubePiece.Options)
+            cube2[self.index] = CubePiece.Options[i]
+            if Point.Validate(cube2) is not None: break
+        self.solver.cube.update(cube2)
 
     def getPolygons(self):
         o = self.location
@@ -409,12 +429,37 @@ class VisualSolver:
         Point(-1, -1, -1), # 6
         Point(-1,  1, -1), # 7
     ]
+    Solved = ["CCC", "rlB", "udL", "fbB", "udB", "fbL", "MMM", "rlL"]  # OCD
+
+    def compareComponents(self, v):
+        dU, dF, dR = v.dot(self.Uaxis), v.dot(self.Faxis), v.dot(self.Raxis)
+        mU, mF, mR = abs(dU), abs(dF), abs(dR)
+        m = max(mU, mF, mR)
+        if m == mU: return ("U", dU < 0)
+        if m == mF: return ("F", dF < 0)
+        if m == mR: return ("R", dR < 0)
+        return None
+
+    def getOriented(self):
+        # basis tell us, for each original cube axis, on which physical axis it's now (and whether it's reversed)
+        common = Matrix.applyTo(self.transformation.get(), Matrix.zero)
+        newBasis = {
+            "U": self.compareComponents(Matrix.applyTo(self.transformation.get(), self.Uaxis) - common),
+            "F": self.compareComponents(Matrix.applyTo(self.transformation.get(), self.Faxis) - common),
+            "R": self.compareComponents(Matrix.applyTo(self.transformation.get(), self.Raxis) - common)}
+        if ((not newBasis["U"]) or (not newBasis["F"]) or (not newBasis["R"])
+                or newBasis["U"][0] == newBasis["F"][0]
+                or newBasis["F"][0] == newBasis["R"][0]
+                or newBasis["R"][0] == newBasis["U"][0]):
+            return None
+        return newBasis
 
     # Turn the absolute sequence into an axis-adjusted so lines up with visualisation
     def generateSequence(self):
+        if self.oriented.get() is None: return None
         output = ""
-        axis = self.oriented.value
-        for char in self.absolute.value:
+        axis = self.oriented.get()
+        for char in self.absolute.get():
             if char == "*": continue  # skip identity
             elif char == "U": index, invert = "U", False
             elif char == "R": index, invert = "R", False
@@ -433,36 +478,26 @@ class VisualSolver:
                     axis = {"U": (axis["R"][0], axis["R"][1] == invert), "R": (axis["U"][0], axis["U"][1] != invert), "F": axis["F"]}
                 else:
                     raise Exception("Something went wrong!")
-        self.relative.update(output if output else " already solved")
+        return output if output else " already solved"
 
-    def compareComponents(self, v):
-        dU, dF, dR = v.dot(self.Uaxis), v.dot(self.Faxis), v.dot(self.Raxis)
-        mU, mF, mR = abs(dU), abs(dF), abs(dR)
-        m = max(mU, mF, mR)
-        if m == mU: return ("U", dU < 0)
-        if m == mF: return ("F", dF < 0)
-        if m == mR: return ("R", dR < 0)
-        return None
+    def getAbsolute(self):
+        if "" in self.cube.get():  # incomplete construction
+            return None
+        else:
+            e = serialiseState(self.cube.get())
+            with shelve.open(PUPPETDB, flag="r") as db:
+                return reverse(db[e][1]) if e in db else -1
 
     def generateTree(self):
-        cube = [piece.getType() for piece in self.pieces]
-        if Point.Validate(cube) is None: return None
-
-        if "" in cube:  # incomplete construction
-            self.absolute.update(None)
-        else:
-            e = serialiseState(cube)
-            with shelve.open(PUPPETDB, flag="r") as db:
-                self.absolute.update(reverse(db[e][1]) if e in db else -1)
-
         mesh = []
-        for piece in self.pieces:
-            center, points = piece.getPolygons()
+        for cubie in self.cubies:
+            center, points = cubie.getPolygons()
             for i in points: i.orient(center)
             mesh.extend(points)
+        for i in mesh:
+            i.transform(Matrix.rotationT(-math.pi/2, Matrix.unitX) @ Matrix.rotationT(math.pi/2, Matrix.unitZ))
+        return BSP.makeBSP(mesh)
 
-        for i in mesh: i.transform(Matrix.rotationT(-math.pi/2, Matrix.unitX) @ Matrix.rotationT(math.pi/2, Matrix.unitZ))
-        self.tree.update(BSP.makeBSP(mesh))
 
     def __init__(self, optimised=False):
         self.optimised = optimised
@@ -470,36 +505,42 @@ class VisualSolver:
         font = pygame.font.SysFont('Consolas', 18)
         window = pygame.display.set_mode((700, 700), pygame.RESIZABLE)
 
+        self.cubies = [CubePiece(self, i, location) for i, location in enumerate(VisualSolver.Locations)]
+        self.cubies[6].fixed = "MMM"  # MMM should stay the same!
+
+        self.transformation = Cached()
+        self.transformation.set(Matrix.scaleT(.3))
+        def compose(new):
+            # Note: set() used here instead of update() because equality on numpy matrices is fucked up
+            # (also, the chances of update() ever saving us an update here are slim)
+            self.transformation.set(new @ self.transformation.get())
+
         self.cursor = Cached()
+        self.cursor.set(None)
         self.preserveCursor = False
-        self.absolute = Cached()
-        self.oriented = Cached()
-        self.relative = (Cached()
+
+        self.cube = Cached()
+        self.cube.set(VisualSolver.Solved)
+        self.symmetric = Cached(lambda: self.cube.get() == do120(self.cube.get())).dependsOn(self.cube)
+
+        self.absolute = Cached(self.getAbsolute).dependsOn(self.cube)
+        self.oriented = Cached(self.getOriented).dependsOn(self.transformation)
+        self.relative = (Cached(self.generateSequence)
             .dependsOn(self.absolute)
             .dependsOn(self.oriented))
-        self.pieces = [CubePiece(self, location) for location in VisualSolver.Locations]
-        self.pieces[6].fixed = "MMM"  # MMM should stay the same!
-        for p, s in enumerate(CubePiece.Solved):
-            if s: self.pieces[p].n = s
 
         # These are chosen so they match U, R and F rotations; depend on engine space orientation
         self.Uaxis = Matrix.unitY
         self.Faxis = Matrix.unitZ
         self.Raxis = -Matrix.unitX 
 
-        transformation = Cached(Matrix.scaleT(.3))
-        def compose(new):
-            # Note: set() used here instead of update() because equality on numpy matrices is fucked up
-            # (also, the chances of update() ever saving us an update here are slim)
-            transformation.set(new @ transformation.value)
         pygame.display.set_caption("Automated Solver")
         clock = pygame.time.Clock()
 
-        self.tree = Cached()
-        self.generateTree()
-        dirty = (Cached(True)  # becomes True when someting changes; manually set to False once screen is updated
+        self.tree = Cached(self.generateTree).dependsOn(self.cube)
+        dirty = (Cached(lambda: True)  # becomes True against visual changes; manually set to False once screen is updated
             .dependsOn(self.tree)
-            .dependsOn(transformation)
+            .dependsOn(self.transformation)
             .dependsOn(self.cursor))
 
         BSP.window = window
@@ -513,13 +554,26 @@ class VisualSolver:
                     dirty.reset()
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_f:
-                        if self.cursor.value is not None:
+                        if self.cursor.get() is not None:
                             # change the current cursor piece
                             self.preserveCursor = True
-                            self.tree.update(None)
-                            while self.tree.value is None:
-                                self.cursor.value.cycle()
-                                self.generateTree()
+                            self.cursor.get().cycle()
+                    elif event.key == pygame.K_r:
+                        self.cube.update(VisualSolver.Solved)
+                    else:
+                        if pygame.key.get_pressed()[pygame.K_RSHIFT]:
+                            new = Point.Validate(
+                                doU(doU(doU(self.cube.get()))) if event.key == pygame.K_i else
+                                doF(doF(doF(self.cube.get()))) if event.key == pygame.K_k else
+                                doR(doR(doR(self.cube.get()))) if event.key == pygame.K_l else
+                                None)
+                        else:
+                            new = Point.Validate(
+                                doU(self.cube.get()) if event.key == pygame.K_i else
+                                doF(self.cube.get()) if event.key == pygame.K_k else
+                                doR(self.cube.get()) if event.key == pygame.K_l else
+                                None)
+                        if new is not None: self.cube.update(new)
 
                 elif event.type == pygame.QUIT:
                     quit()
@@ -538,29 +592,15 @@ class VisualSolver:
             if keys[pygame.K_DOWN]: compose(Matrix.rotationT(-20 * dt * math.pi/180, Matrix.unitX))
             if keys[pygame.K_UP]: compose(Matrix.rotationT(20 * dt * math.pi/180, Matrix.unitX))
 
-            if dirty.value:
-                dirty.update(False)
-
-                # basis tell us, for each original cube axis, which physical axis carries it now (and whether it's reversed)
-                common = Matrix.applyTo(transformation.value, Matrix.zero)
-                newBasis = {
-                    "U": self.compareComponents(Matrix.applyTo(transformation.value, self.Uaxis) - common),
-                    "F": self.compareComponents(Matrix.applyTo(transformation.value, self.Faxis) - common),
-                    "R": self.compareComponents(Matrix.applyTo(transformation.value, self.Raxis) - common)}
-                if ((not newBasis["U"]) or (not newBasis["F"]) or (not newBasis["R"])
-                        or newBasis["U"][0] == newBasis["F"][0]
-                        or newBasis["F"][0] == newBasis["R"][0]
-                        or newBasis["R"][0] == newBasis["U"][0]):
-                    newBasis = None
-                self.oriented.update(newBasis)
-
+            if dirty.get():
                 window.fill(GRAY)
 
                 BSP.count = 0
                 BSP.cursor = None
-                BSP.consultBSP(self.tree.value, transformation.value)
+                BSP.consultBSP(self.tree.get(), self.transformation.get())
+                dirty.set(False)
                 self.cursor.update(
-                    self.cursor.value if self.preserveCursor else  # if we just pressed F, don't change cursor!
+                    self.cursor.get() if self.preserveCursor else  # if we just pressed F, don't change cursor!
                     BSP.cursor.parent if isinstance(BSP.cursor, CubePiece.Inner) else
                     BSP.cursor if isinstance(BSP.cursor, CubePiece) else
                     None)
@@ -570,14 +610,15 @@ class VisualSolver:
                 window.blit(font.render(f"WASD, SHIFT and SPACE to move. Arrow keys to adjust camera. Press F on a piece to swap it.", True, (0, 0, 0)), (10, 10))
                 window.blit(font.render(f"{BSP.count} polygons visible", True, (80, 80, 80)), (10, 40))
 
-                if self.absolute.value == -1:  # -> unsolvable
+                if self.absolute.get() == -1:  # -> unsolvable
                     window.blit(font.render("Unsolvable!", True, (0, 0, 0)), (0, 70))
-                elif self.absolute.value is not None:  # -> solvable
-                    window.blit(font.render(f"Solution (orientationless): {self.absolute.value}", True, (0, 0, 0)), (10, 70))
-                    if self.oriented.value and (self.relative.value is None):  # compute relative solution from basis
-                        self.generateSequence()
-                if self.relative.value:
-                    window.blit(font.render(f"Solution: {self.relative.value}", True, (0, 0, 0)), (10, 100))
+                elif self.absolute.get() is not None:  # -> solvable
+                    window.blit(font.render(f"Solution (orientationless): {self.absolute.get()}", True, (0, 0, 0)), (10, 70))
+                    if self.relative.get():
+                        window.blit(font.render(f"Solution: {self.relative.get()}", True, (0, 0, 0)), (10, 100))
+
+                if self.symmetric.get():
+                    window.blit(font.render(f"(symmetric state!)", True, (0, 0, 0)), (10, 130))
 
                 pygame.display.flip()
 

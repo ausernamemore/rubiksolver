@@ -14,7 +14,7 @@ All physically possible (non-intersecting) arrangements of the pieces are split 
         also check that all are solvable, and thus belong to this group.
         Because of this, there are
             (13'174 - 10) / 3  +  10   =   4'398 uts
-        For the unsolvable groups, just divide the raw count by 3, as they have no symmetric elements.
+        For the unsolvable groups, just divide the raw count by 3, as they have no symmetric elements in them.
 
         If accounting for piece coloring, each of the 13'174 can be seen as unique, since each triply-counted
         state corresponds to the 3 ways to color the main block. Then we have 3! ways to place the L blocks
@@ -42,13 +42,17 @@ All physically possible (non-intersecting) arrangements of the pieces are split 
 """
 
     # Comment the line below out to run as command-line tool
-VisualSolver()
+VisualSolver(optimised=True)
     # Set optimised=True to hide internal faces (improves CPU usage but looks slightly uglier)
 
-explorer = GroupExplorer("dbs/puppet.db", serialiseState, allMoves)
+explorer = GroupExplorer("dbs/reduced.db", serialiseState, asymmetricMoves)
     # You can download the fully-explored puppet.db or compute it yourself
+    # You may also load up other dbs or explore ones yourself
 
-seed = ["CCC1", "rlB2", "udL3", "fbB4", "udB5", "fbL6", "MMM7", "rlL8"]
+seed = doU(["CCC", "rlB", "udL", "fbB", "udB", "fbL", "MMM", "rlL"])
+
+print(explorer.lookup(serialiseState(seed)))
+quit()
 
 while explorer.listResults() is None:
     # -> if group isn't fully explored, run the explorer from the starting position
@@ -57,7 +61,7 @@ while explorer.listResults() is None:
     elapsed = explorer.runSearch(seed, DEFAULT if depth=="" else int(depth))
     print(f"Search finished! Took {elapsed} seconds!")
 
-countSymmetricArrangements()
+#countSymmetricArrangements()
 
 """
 with open("generators", "r") as generators:
