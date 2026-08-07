@@ -3,6 +3,8 @@ from eng import *
 from gexplorer import *
 from cached import *
 
+# TODO: add a class that implements both PlacePiece and getPolygons at once and allows defining other twisy puzzles easily!
+
 """
     Code by u/Adventurous_Fill7251
     Make sure to check out my Puppet Cube guide, available on my Reddit profile ;)
@@ -120,6 +122,31 @@ def doY90(cube):  # rotate around Y axis
         rotateY90(cube[3])]
 # Note: these two are enough to generate all other rotations and I'm lazy af so these are all I'll write.
 
+
+# Turn the absolute sequence into an axis-adjusted so lines up with visualisation
+def generateSequence(axis, absolute):
+    output = ""
+    for char in absolute:
+        if char == "*": continue  # skip identity
+        elif char == "U": index, invert = "U", False
+        elif char == "R": index, invert = "R", False
+        elif char == "F": index, invert = "F", False
+        elif char == "u": index, invert = "U", True
+        elif char == "r": index, invert = "R", True
+        elif char == "f": index, invert = "F", True
+        else: raise Exception("Something went wrong!")
+        output += " " + axis[index][0] + ("'" if invert else "")
+        if axis[index][1]:  # the rotation moves along MMM (which determines orientation) -> udpate axis accordingly
+            if index == "U": # R->F and F->R' if not inverted
+                axis = {"U": axis["U"], "R": (axis["F"][0], axis["F"][1] == invert), "F": (axis["R"][0], axis["R"][1] != invert)}
+            elif index == "R":  # U->F' and F->U if not inverted
+                axis = {"U": (axis["F"][0], axis["F"][1] != invert), "R": axis["R"], "F": (axis["U"][0], axis["U"][1] == invert)}
+            elif index == "F":  # U->R and R->U' if not inverted
+                axis = {"U": (axis["R"][0], axis["R"][1] == invert), "R": (axis["U"][0], axis["U"][1] != invert), "F": axis["F"]}
+            else:
+                raise Exception("Something went wrong!")
+    return output if output else " already solved"
+
 class Point:
     @staticmethod
     def PlacePiece(piece, o):
@@ -155,11 +182,8 @@ class Point:
                 o.scale(2, 2, 0), o.scale(2, 1, 0), o.scale(1, 2, 0)]
         raise Exception(f"Unknown piece label {piece}!")
     @staticmethod
-    def Validate(cube, discardSymmetric=False):
+    def Validate(cube):
         if cube is None: return None
-
-        # Reject symmetric arrangements
-        if discardSymmetric and cube == do120(cube): return None
 
         occupied = []
         for piece, loc in zip(cube, VisualSolver.Locations): occupied.extend(Point.PlacePiece(piece, loc))
@@ -205,15 +229,6 @@ legalMoves = {
         the element at index 6 (OCD) of the generator can never move to a different position.
     -> For convention, I chose to keep the MMM there, because it contains the centers so it makes sense it doesn't move
 """
-
-asymmetricMoves = {
-    "U": lambda c: Point.Validate(doU(c), discardSymmetric=True),
-    "R": lambda c: Point.Validate(doR(c), discardSymmetric=True),
-    "F": lambda c: Point.Validate(doF(c), discardSymmetric=True),
-    "u": lambda c: Point.Validate(doU(doU(doU(c))), discardSymmetric=True),  # U'
-    "r": lambda c: Point.Validate(doR(doR(doR(c))), discardSymmetric=True),  # R'
-    "f": lambda c: Point.Validate(doF(doF(doF(c))), discardSymmetric=True),  # F'
-}
 
 #-------------------------------------------------#
     # 3d processing code
@@ -415,7 +430,6 @@ def countSymmetricArrangements():
         print(f"Is {k} symmetric? {isSymmetric}. Is it valid? {isValid}")
         if isValid: print(f"    Construction path? {solvable.lookup(serialiseState(v))}")
 
-
 class VisualSolver:
     # Important: Do NOT change these coordinate points as they're tied to OCD!
         #If you want to rotate the cube, simply apply the rotation after generating the mesh instead.
@@ -454,32 +468,6 @@ class VisualSolver:
             return None
         return newBasis
 
-    # Turn the absolute sequence into an axis-adjusted so lines up with visualisation
-    def generateSequence(self):
-        if self.oriented.get() is None: return None
-        output = ""
-        axis = self.oriented.get()
-        for char in self.absolute.get():
-            if char == "*": continue  # skip identity
-            elif char == "U": index, invert = "U", False
-            elif char == "R": index, invert = "R", False
-            elif char == "F": index, invert = "F", False
-            elif char == "u": index, invert = "U", True
-            elif char == "r": index, invert = "R", True
-            elif char == "f": index, invert = "F", True
-            else: raise Exception("Something went wrong!")
-            output += " " + axis[index][0] + ("'" if invert else "")
-            if axis[index][1]:  # the rotation moves along MMM (which determines orientation) -> udpate axis accordingly
-                if index == "U": # R->F and F->R' if not inverted
-                    axis = {"U": axis["U"], "R": (axis["F"][0], axis["F"][1] == invert), "F": (axis["R"][0], axis["R"][1] != invert)}
-                elif index == "R":  # U->F' and F->U if not inverted
-                    axis = {"U": (axis["F"][0], axis["F"][1] != invert), "R": axis["R"], "F": (axis["U"][0], axis["U"][1] == invert)}
-                elif index == "F":  # U->R and R->U' if not inverted
-                    axis = {"U": (axis["R"][0], axis["R"][1] == invert), "R": (axis["U"][0], axis["U"][1] != invert), "F": axis["F"]}
-                else:
-                    raise Exception("Something went wrong!")
-        return output if output else " already solved"
-
     def getAbsolute(self):
         if "" in self.cube.get():  # incomplete construction
             return None
@@ -508,24 +496,29 @@ class VisualSolver:
         self.cubies = [CubePiece(self, i, location) for i, location in enumerate(VisualSolver.Locations)]
         self.cubies[6].fixed = "MMM"  # MMM should stay the same!
 
-        self.transformation = Cached()
+        self.transformation = Reactive()
         self.transformation.set(Matrix.scaleT(.3))
         def compose(new):
             # Note: set() used here instead of update() because equality on numpy matrices is fucked up
             # (also, the chances of update() ever saving us an update here are slim)
             self.transformation.set(new @ self.transformation.get())
 
-        self.cursor = Cached()
+        self.cursor = Reactive()
         self.cursor.set(None)
         self.preserveCursor = False
 
-        self.cube = Cached()
+        self.cube = Reactive()
         self.cube.set(VisualSolver.Solved)
-        self.symmetric = Cached(lambda: self.cube.get() == do120(self.cube.get())).dependsOn(self.cube)
+        self.symmetric = (Reactive(lambda:
+                self.cube.get() == do120(self.cube.get()))
+            .dependsOn(self.cube))
 
-        self.absolute = Cached(self.getAbsolute).dependsOn(self.cube)
-        self.oriented = Cached(self.getOriented).dependsOn(self.transformation)
-        self.relative = (Cached(self.generateSequence)
+        self.absolute = Reactive(self.getAbsolute).dependsOn(self.cube)
+        self.oriented = Reactive(self.getOriented).dependsOn(self.transformation)
+        self.relative = (Reactive(lambda:
+                self.oriented.get() and
+                self.absolute.get() and
+                generateSequence(self.oriented.get(), self.absolute.get()))
             .dependsOn(self.absolute)
             .dependsOn(self.oriented))
 
@@ -537,8 +530,8 @@ class VisualSolver:
         pygame.display.set_caption("Automated Solver")
         clock = pygame.time.Clock()
 
-        self.tree = Cached(self.generateTree).dependsOn(self.cube)
-        dirty = (Cached(lambda: True)  # becomes True against visual changes; manually set to False once screen is updated
+        self.tree = Reactive(self.generateTree).dependsOn(self.cube)
+        dirty = (Reactive(lambda: True)  # becomes True against visual changes; manually set to False once screen is updated
             .dependsOn(self.tree)
             .dependsOn(self.transformation)
             .dependsOn(self.cursor))
